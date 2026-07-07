@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { CartItem, Coupon } from "./types";
@@ -57,6 +58,9 @@ interface AppState {
   authOpen: boolean;
   authRole: "customer" | "admin" | null; // which role the auth modal is signing in as
   setAuthOpen: (o: boolean, role?: "customer" | "admin") => void;
+
+  // hydration flag (true once persisted state is loaded from localStorage)
+  _hasHydrated: boolean;
 }
 
 export const useStore = create<AppState>()(
@@ -126,9 +130,19 @@ export const useStore = create<AppState>()(
       authRole: "customer",
       setAuthOpen: (o, role) =>
         set({ authOpen: o, authRole: role ?? get().authRole }),
+
+      // hydration flag — false on server & first client render, true after
+      // persisted state is rehydrated from localStorage
+      _hasHydrated: false,
     }),
     {
       name: "shadowvault-store",
+      // CRITICAL: skip auto-rehydration so the store stays in default state
+      // during SSR and the first client render (matching the server). We
+      // manually trigger rehydration in a useEffect (see useHydrated) AFTER
+      // React has committed the initial render. This prevents hydration
+      // mismatches that would otherwise break React event handlers.
+      skipHydration: true,
       partialize: (s) => ({
         cart: s.cart,
         wishlist: s.wishlist,
@@ -136,9 +150,28 @@ export const useStore = create<AppState>()(
         userRole: s.userRole,
         userName: s.userName,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state) state._hasHydrated = true;
+      },
     }
   )
 );
+
+/**
+ * Returns false during SSR and the very first client render, then triggers
+ * rehydration of the persisted store and returns true once complete. Gate any
+ * UI that depends on persisted state (userRole, cart, wishlist) on this to
+ * avoid hydration mismatches that can break React event handlers.
+ */
+export function useHydrated(): boolean {
+  const hydrated = useStore((s) => s._hasHydrated);
+  useEffect(() => {
+    if (!hydrated) {
+      void useStore.persist.rehydrate();
+    }
+  }, [hydrated]);
+  return hydrated;
+}
 
 // derived helpers
 export const cartCount = (cart: CartItem[]) =>

@@ -8,8 +8,11 @@ export function LoadingScreen() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setDone(true), 1300);
-    return () => clearTimeout(t);
+    // Short, reliable timeout. Even if this somehow doesn't fire, the overlay
+  // has pointer-events-none on exit and a max-opacity so it can't permanently
+  // trap clicks.
+  const t = setTimeout(() => setDone(true), 800);
+  return () => clearTimeout(t);
   }, []);
 
   return (
@@ -17,8 +20,8 @@ export function LoadingScreen() {
       {!done && (
         <motion.div
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.5 }}
-          className="fixed inset-0 z-[100] grid place-items-center bg-[oklch(0.13_0.018_280)]"
+          transition={{ duration: 0.4 }}
+          className="fixed inset-0 z-[100] grid place-items-center bg-[oklch(0.13_0.018_280)] pointer-events-none"
         >
           <div className="flex flex-col items-center">
             <motion.div
@@ -35,7 +38,7 @@ export function LoadingScreen() {
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
+              transition={{ delay: 0.1 }}
               className="font-bold text-xl tracking-tight"
             >
               Shadow<span className="text-gradient">Vault</span>
@@ -43,7 +46,7 @@ export function LoadingScreen() {
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: 120 }}
-              transition={{ delay: 0.3, duration: 0.9, ease: "easeInOut" }}
+              transition={{ delay: 0.15, duration: 0.6, ease: "easeInOut" }}
               className="h-0.5 mt-4 rounded-full bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)]"
             />
             <p className="text-[11px] text-muted-foreground mt-3 uppercase tracking-[0.2em]">

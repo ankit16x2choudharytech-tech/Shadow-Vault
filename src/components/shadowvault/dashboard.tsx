@@ -27,7 +27,7 @@ import {
   Crown,
   Zap,
 } from "lucide-react";
-import { useStore } from "@/lib/store";
+import { useStore, useHydrated } from "@/lib/store";
 import { useApi } from "@/lib/use-api";
 import type { Order, Product } from "@/lib/types";
 import { Card } from "@/components/ui/card";
@@ -72,9 +72,12 @@ const statusStyles: Record<string, string> = {
 
 export function Dashboard() {
   const { userRole, userName, customerEmail, setAuthOpen } = useStore();
+  // Before hydration, treat as logged-out so SSR and first client render match
+  const hydrated = useHydrated();
+  const effUserRole = hydrated ? userRole : null;
 
   // Not logged in → prompt to sign in
-  if (userRole === null) {
+  if (effUserRole === null) {
     return (
       <section className="relative pt-24 pb-20 min-h-screen">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -130,7 +133,7 @@ export function Dashboard() {
     );
   }
 
-  const isAdmin = userRole === "admin";
+  const isAdmin = effUserRole === "admin";
 
   return (
     <section className="relative pt-24 pb-20 min-h-screen">

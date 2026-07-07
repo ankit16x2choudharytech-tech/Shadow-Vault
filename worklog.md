@@ -90,3 +90,19 @@ Work Log:
 
 Stage Summary:
 - Role-based access implemented end-to-end. Customer sees customer dashboard, admin sees admin console. No cross-access.
+
+---
+Task ID: 11
+Agent: main
+Task: Fix "all buttons not working" — root cause: Zustand persist hydration mismatch
+
+Work Log:
+- Diagnosed: Zustand persist middleware rehydrates synchronously from localStorage BEFORE React's first client render. Server renders userRole=null (logged-out), client renders userRole="customer"/"admin" (persisted). This hydration mismatch caused React to discard the server tree and re-render — in some browsers this left event handlers detached or the LoadingScreen overlay (fixed inset-0 z-[100]) permanently blocking all clicks.
+- Fix 1 — store: Added `_hasHydrated` flag + `skipHydration: true` on persist middleware so the store stays in default (server-matching) state during SSR & first client render. Created `useHydrated()` hook that calls `useStore.persist.rehydrate()` in a useEffect after mount, setting `_hasHydrated=true` via onRehydrateStorage callback.
+- Fix 2 — Navbar: Gate persisted-state-dependent UI (userRole, cart badge, wishlist badge, user menu vs Sign In button, mobile menu auth section) on `useHydrated()`. Before hydration: render server-consistent logged-out/empty state. After: render actual persisted state. Zero hydration mismatch.
+- Fix 3 — Dashboard: Same gate — before hydration shows logged-out prompt (matching server); after hydration shows role-appropriate dashboard.
+- Fix 4 — LoadingScreen: Reduced timeout 1300ms→800ms, added `pointer-events-none` to the overlay so it can NEVER permanently block clicks even if the effect fails to fire.
+- Verified with Agent Browser: fresh load (no hydration errors); customer login + reload (no errors, navbar shows logged-in state, buttons work); admin login + reload (no errors, admin console shows correctly, buttons work); product modal + add to cart all work. Only known cosmetic DialogContent description warnings remain.
+
+Stage Summary:
+- Root cause was hydration mismatch from Zustand persist. Fixed with skipHydration + manual rehydration gate. All buttons now work reliably on every load, including reloads with persisted login state.
