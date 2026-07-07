@@ -9,9 +9,7 @@ export type View =
   | "marketplace"
   | "dashboard";
 
-export type DashboardTab =
-  | "customer"
-  | "admin";
+export type UserRole = "customer" | "admin" | null;
 
 interface AppState {
   // navigation
@@ -43,12 +41,12 @@ interface AppState {
   wishlist: string[];
   toggleWishlist: (id: string) => void;
 
-  // dashboard
-  dashboardTab: DashboardTab;
-  setDashboardTab: (t: DashboardTab) => void;
-
-  // customer session (demo, local only)
+  // session / auth
+  userRole: UserRole;
+  userName: string | null;
   customerEmail: string;
+  login: (role: "customer" | "admin", name: string, email: string) => void;
+  logout: () => void;
   setCustomerEmail: (e: string) => void;
 
   // checkout modal
@@ -57,7 +55,8 @@ interface AppState {
 
   // auth modal
   authOpen: boolean;
-  setAuthOpen: (o: boolean) => void;
+  authRole: "customer" | "admin" | null; // which role the auth modal is signing in as
+  setAuthOpen: (o: boolean, role?: "customer" | "admin") => void;
 }
 
 export const useStore = create<AppState>()(
@@ -106,17 +105,27 @@ export const useStore = create<AppState>()(
             : [...s.wishlist, id],
         })),
 
-      dashboardTab: "customer",
-      setDashboardTab: (t) => set({ dashboardTab: t }),
-
+      // session — default logged-out
+      userRole: null,
+      userName: null,
       customerEmail: "demo@shadowvault.in",
+      login: (role, name, email) =>
+        set({
+          userRole: role,
+          userName: name,
+          customerEmail: email,
+        }),
+      logout: () =>
+        set({ userRole: null, userName: null }),
       setCustomerEmail: (e) => set({ customerEmail: e }),
 
       checkoutOpen: false,
       setCheckoutOpen: (o) => set({ checkoutOpen: o }),
 
       authOpen: false,
-      setAuthOpen: (o) => set({ authOpen: o }),
+      authRole: "customer",
+      setAuthOpen: (o, role) =>
+        set({ authOpen: o, authRole: role ?? get().authRole }),
     }),
     {
       name: "shadowvault-store",
@@ -124,7 +133,8 @@ export const useStore = create<AppState>()(
         cart: s.cart,
         wishlist: s.wishlist,
         customerEmail: s.customerEmail,
-        dashboardTab: s.dashboardTab,
+        userRole: s.userRole,
+        userName: s.userName,
       }),
     }
   )

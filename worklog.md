@@ -73,3 +73,20 @@ Stage Summary:
 - Full ShadowVault marketplace live at /. All core flows verified end-to-end in browser.
 - Premium dark gaming UI with aurora bg, glassmorphism, neon accents (violet/pink/emerald/amber/cyan).
 - Real DB-backed products, reviews, orders, coupons. Razorpay-style checkout creates orders.
+
+---
+Task ID: 10
+Agent: main
+Task: Role-based dashboard — customer login shows only customer dashboard, admin login shows only admin console
+
+Work Log:
+- Added session state to Zustand store: userRole ("customer"|"admin"|null), userName, login(), logout(). Persisted. Removed old dashboardTab switching.
+- AuthModal: added Customer/Admin role picker tabs at top. Role drives header copy, icon (Shield vs Crown), demo hint, and which dashboard opens after login. login() sets role+name+email then navigates to dashboard.
+- Dashboard: if not logged in → sign-in prompt with two role buttons. If customer → only CustomerDashboard (Overview/Downloads/Orders/Wishlist/Profile). If admin → only AdminDashboard (Overview/Products/Orders/Coupons/Users). Heading changes ("My Dashboard" vs "Admin Console") + role badge chip.
+- Navbar: logged-out shows "Sign In" button; logged-in shows dropdown user menu (avatar, name, role badge) with role-appropriate links + Sign Out. Mobile sheet mirrors this with Customer/Admin login buttons.
+- Removed stale setDashboardTab call in checkout success flow.
+- Fixed React Compiler set-state-in-effect by deriving role from override+authRole instead of syncing via effect.
+- Verified with Agent Browser: logged-out prompt OK; customer login → only customer dashboard, no admin leak; admin login → only admin console (verified customer-only markers absent); navbar menus role-correct; sign out works; no console errors. VLM confirmed admin console renders fully.
+
+Stage Summary:
+- Role-based access implemented end-to-end. Customer sees customer dashboard, admin sees admin console. No cross-access.

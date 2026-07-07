@@ -30,7 +30,6 @@ import {
 import { useStore } from "@/lib/store";
 import { useApi } from "@/lib/use-api";
 import type { Order, Product } from "@/lib/types";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -72,7 +71,66 @@ const statusStyles: Record<string, string> = {
 };
 
 export function Dashboard() {
-  const { dashboardTab, setDashboardTab, customerEmail } = useStore();
+  const { userRole, userName, customerEmail, setAuthOpen } = useStore();
+
+  // Not logged in → prompt to sign in
+  if (userRole === null) {
+    return (
+      <section className="relative pt-24 pb-20 min-h-screen">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6"
+          >
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+              <span className="text-gradient">Dashboard</span>
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Sign in to access your dashboard.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grad-border p-8 sm:p-12 max-w-2xl mx-auto text-center"
+          >
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-[var(--neon-violet)] to-[var(--neon-pink)] glow-violet mb-5">
+              <ShieldCheck className="h-8 w-8 text-white" strokeWidth={2.5} />
+            </div>
+            <h2 className="text-2xl font-bold">
+              You&apos;re not signed in yet
+            </h2>
+            <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+              Customers see their downloads, orders & wishlist. Admins manage
+              products, orders, coupons & analytics. Pick your role to
+              continue.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center mt-6">
+              <Button
+                onClick={() => setAuthOpen(true, "customer")}
+                className="btn-magnetic bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0"
+              >
+                <User className="h-4 w-4 mr-2" />
+                Sign in as Customer
+              </Button>
+              <Button
+                onClick={() => setAuthOpen(true, "admin")}
+                variant="outline"
+                className="glass border-[var(--neon-amber)]/40 text-[var(--neon-amber)] hover:bg-[var(--neon-amber)]/10"
+              >
+                <ShieldCheck className="h-4 w-4 mr-2" />
+                Sign in as Admin
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+    );
+  }
+
+  const isAdmin = userRole === "admin";
 
   return (
     <section className="relative pt-24 pb-20 min-h-screen">
@@ -80,40 +138,58 @@ export function Dashboard() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
+          className="mb-6 flex items-start justify-between gap-4 flex-wrap"
         >
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-            <span className="text-gradient">Dashboard</span>
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Manage your purchases, downloads and account — or switch to admin.
-          </p>
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+              {isAdmin ? (
+                <>
+                  Admin <span className="text-gradient">Console</span>
+                </>
+              ) : (
+                <>
+                  My <span className="text-gradient">Dashboard</span>
+                </>
+              )}
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              {isAdmin
+                ? "Manage products, orders, coupons, users & analytics."
+                : "Manage your purchases, downloads, wishlist & profile."}
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full glass px-3 py-1.5">
+            <div
+              className={cn(
+                "grid h-7 w-7 place-items-center rounded-full text-white text-xs font-bold",
+                isAdmin
+                  ? "bg-gradient-to-br from-[var(--neon-amber)] to-[var(--neon-pink)]"
+                  : "bg-gradient-to-br from-[var(--neon-violet)] to-[var(--neon-pink)]"
+              )}
+            >
+              {(userName ?? "U").slice(0, 2).toUpperCase()}
+            </div>
+            <div className="leading-tight">
+              <div className="text-sm font-medium">{userName}</div>
+              <div
+                className={cn(
+                  "text-[10px] font-semibold uppercase tracking-wide",
+                  isAdmin ? "text-[var(--neon-amber)]" : "text-[var(--neon-violet)]"
+                )}
+              >
+                {isAdmin ? "Administrator" : "Customer"}
+              </div>
+            </div>
+          </div>
         </motion.div>
 
-        <Tabs
-          value={dashboardTab}
-          onValueChange={(v) => setDashboardTab(v as "customer" | "admin")}
-        >
-          <TabsList className="glass bg-white/5 border-white/10 mb-6">
-            <TabsTrigger value="customer" className="gap-1.5">
-              <User className="h-4 w-4" />
-              Customer
-            </TabsTrigger>
-            <TabsTrigger value="admin" className="gap-1.5">
-              <ShieldCheck className="h-4 w-4" />
-              Admin
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="customer">
-            <CustomerDashboard email={customerEmail} />
-          </TabsContent>
-          <TabsContent value="admin">
-            <ErrorBoundary>
-              <AdminDashboard />
-            </ErrorBoundary>
-          </TabsContent>
-        </Tabs>
+        {isAdmin ? (
+          <ErrorBoundary>
+            <AdminDashboard />
+          </ErrorBoundary>
+        ) : (
+          <CustomerDashboard email={customerEmail} />
+        )}
       </div>
     </section>
   );

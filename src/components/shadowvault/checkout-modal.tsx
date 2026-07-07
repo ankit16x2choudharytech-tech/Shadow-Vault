@@ -304,7 +304,6 @@ export function CheckoutModal() {
                   clearCart();
                   close();
                   useStore.getState().setView("dashboard");
-                  useStore.getState().setDashboardTab("customer");
                 }}
                 className="w-full btn-magnetic h-11 mt-5 bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0"
               >

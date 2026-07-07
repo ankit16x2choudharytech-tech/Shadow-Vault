@@ -11,6 +11,10 @@ import {
   LayoutDashboard,
   Store,
   Shield,
+  ShieldCheck,
+  Crown,
+  LogOut,
+  ChevronDown,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useStore, cartCount } from "@/lib/store";
@@ -23,6 +27,16 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export function Navbar() {
   const {
@@ -34,6 +48,9 @@ export function Navbar() {
     setCartOpen,
     setAuthOpen,
     wishlist,
+    userRole,
+    userName,
+    logout,
   } = useStore();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -186,13 +203,99 @@ export function Navbar() {
               )}
             </Button>
 
-            <Button
-              onClick={() => setAuthOpen(true)}
-              size="sm"
-              className="hidden sm:inline-flex btn-magnetic bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0 hover:opacity-90 glow-violet"
-            >
-              Sign In
-            </Button>
+            {/* Auth: user menu when logged in, Sign In button when logged out */}
+            {userRole ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="hidden sm:inline-flex items-center gap-2 rounded-lg glass px-2.5 py-1.5 hover:bg-white/10 transition-colors"
+                    aria-label="Account menu"
+                  >
+                    <div
+                      className={cn(
+                        "grid h-7 w-7 place-items-center rounded-full text-white text-[11px] font-bold",
+                        userRole === "admin"
+                          ? "bg-gradient-to-br from-[var(--neon-amber)] to-[var(--neon-pink)]"
+                          : "bg-gradient-to-br from-[var(--neon-violet)] to-[var(--neon-pink)]"
+                      )}
+                    >
+                      {(userName ?? "U").slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="leading-tight text-left">
+                      <div className="text-xs font-medium max-w-[90px] truncate">
+                        {userName}
+                      </div>
+                      <div
+                        className={cn(
+                          "text-[9px] font-semibold uppercase tracking-wide",
+                          userRole === "admin"
+                            ? "text-[var(--neon-amber)]"
+                            : "text-[var(--neon-violet)]"
+                        )}
+                      >
+                        {userRole}
+                      </div>
+                    </div>
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="glass-strong border-white/10 w-56"
+                >
+                  <DropdownMenuLabel className="flex items-center gap-2">
+                    {userRole === "admin" ? (
+                      <Crown className="h-4 w-4 text-[var(--neon-amber)]" />
+                    ) : (
+                      <Shield className="h-4 w-4 text-[var(--neon-violet)]" />
+                    )}
+                    <div className="leading-tight">
+                      <div className="text-sm font-medium">{userName}</div>
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                        {userRole === "admin" ? "Administrator" : "Customer"}
+                      </div>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuItem
+                    onClick={() => go("dashboard")}
+                    className="gap-2 cursor-pointer focus:bg-white/10"
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                    {userRole === "admin" ? "Admin Console" : "My Dashboard"}
+                  </DropdownMenuItem>
+                  {userRole === "customer" && (
+                    <DropdownMenuItem
+                      onClick={() => go("marketplace")}
+                      className="gap-2 cursor-pointer focus:bg-white/10"
+                    >
+                      <Store className="h-4 w-4" />
+                      Browse Marketplace
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuItem
+                    onClick={() => {
+                      logout();
+                      toast.success("Signed out");
+                      go("home");
+                    }}
+                    className="gap-2 cursor-pointer focus:bg-white/10 text-[var(--neon-pink)]"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                onClick={() => setAuthOpen(true, "customer")}
+                size="sm"
+                className="hidden sm:inline-flex btn-magnetic bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0 hover:opacity-90 glow-violet"
+              >
+                Sign In
+              </Button>
+            )}
 
             {/* Mobile menu */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -243,15 +346,71 @@ export function Navbar() {
                       </button>
                     );
                   })}
-                  <Button
-                    onClick={() => {
-                      setAuthOpen(true);
-                      setMobileOpen(false);
-                    }}
-                    className="w-full btn-magnetic bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0"
-                  >
-                    Sign In
-                  </Button>
+                  {userRole ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 rounded-lg glass px-3 py-2.5">
+                        <div
+                          className={cn(
+                            "grid h-8 w-8 place-items-center rounded-full text-white text-xs font-bold",
+                            userRole === "admin"
+                              ? "bg-gradient-to-br from-[var(--neon-amber)] to-[var(--neon-pink)]"
+                              : "bg-gradient-to-br from-[var(--neon-violet)] to-[var(--neon-pink)]"
+                          )}
+                        >
+                          {(userName ?? "U").slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="leading-tight">
+                          <div className="text-sm font-medium">{userName}</div>
+                          <div
+                            className={cn(
+                              "text-[10px] font-semibold uppercase tracking-wide",
+                              userRole === "admin"
+                                ? "text-[var(--neon-amber)]"
+                                : "text-[var(--neon-violet)]"
+                            )}
+                          >
+                            {userRole === "admin" ? "Administrator" : "Customer"}
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => {
+                          logout();
+                          toast.success("Signed out");
+                          go("home");
+                          setMobileOpen(false);
+                        }}
+                        variant="outline"
+                        className="w-full glass border-[var(--neon-pink)]/40 text-[var(--neon-pink)] hover:bg-[var(--neon-pink)]/10"
+                      >
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Sign Out
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Button
+                        onClick={() => {
+                          setAuthOpen(true, "customer");
+                          setMobileOpen(false);
+                        }}
+                        className="w-full btn-magnetic bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0"
+                      >
+                        Sign In as Customer
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setAuthOpen(true, "admin");
+                          setMobileOpen(false);
+                        }}
+                        variant="outline"
+                        className="w-full glass border-[var(--neon-amber)]/40 text-[var(--neon-amber)] hover:bg-[var(--neon-amber)]/10"
+                      >
+                        <Crown className="h-4 w-4 mr-2" />
+                        Admin Login
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </SheetContent>
             </Sheet>

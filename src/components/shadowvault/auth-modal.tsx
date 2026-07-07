@@ -19,6 +19,8 @@ import {
   Loader2,
   CheckCircle2,
   ArrowRight,
+  ShieldCheck,
+  Crown,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { toast } from "sonner";
@@ -27,10 +29,14 @@ import { cn } from "@/lib/utils";
 type Mode = "login" | "register";
 
 export function AuthModal() {
-  const { authOpen, setAuthOpen, setCustomerEmail } = useStore();
+  const { authOpen, authRole, setAuthOpen, login, setView } = useStore();
   const [mode, setMode] = useState<Mode>("login");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  // local override of the role picker; falls back to the role requested on open
+  const [override, setOverride] = useState<"customer" | "admin" | null>(null);
+
+  const role: "customer" | "admin" = override ?? (authRole ?? "customer");
 
   const [form, setForm] = useState({
     name: "",
@@ -39,18 +45,36 @@ export function AuthModal() {
     referral: "",
   });
 
+  const isCustomer = role === "customer";
+
+  // default credentials hint per role
+  const demoHint = isCustomer
+    ? "Demo: demo@shadowvault.in / any password"
+    : "Demo: admin@shadowvault.in / any password";
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // simulate auth
     await new Promise((r) => setTimeout(r, 1100));
     setLoading(false);
     setDone(true);
-    if (form.email) setCustomerEmail(form.email);
-    toast.success(mode === "login" ? "Welcome back!" : "Account created!");
+
+    const name =
+      form.name.trim() ||
+      (isCustomer ? "Demo Gamer" : "Vault Admin");
+    const email =
+      form.email.trim() ||
+      (isCustomer ? "demo@shadowvault.in" : "admin@shadowvault.in");
+
+    login(role, name, email);
+    toast.success(
+      `${isCustomer ? "Welcome back" : "Admin access granted"}, ${name}!`
+    );
     setTimeout(() => {
       setDone(false);
       setAuthOpen(false);
+      setView("dashboard");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }, 1400);
   };
 
@@ -59,7 +83,10 @@ export function AuthModal() {
       open={authOpen}
       onOpenChange={(o) => {
         setAuthOpen(o);
-        if (!o) setTimeout(() => setDone(false), 300);
+        if (!o) {
+          setTimeout(() => setDone(false), 300);
+          setOverride(null);
+        }
       }}
     >
       <DialogContent className="max-w-md w-[95vw] p-0 gap-0 glass-strong border-white/10 overflow-hidden">
@@ -71,25 +98,66 @@ export function AuthModal() {
         <div className="relative bg-gradient-to-br from-[var(--neon-violet)]/30 to-[var(--neon-pink)]/20 p-6 text-center">
           <div className="absolute inset-0 grid-overlay opacity-40" />
           <div className="relative">
-            <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-[var(--neon-violet)] to-[var(--neon-pink)] glow-violet mb-3">
-              <Shield className="h-6 w-6 text-white" strokeWidth={2.5} />
+            <div
+              className={cn(
+                "mx-auto grid h-12 w-12 place-items-center rounded-2xl mb-3",
+                isCustomer
+                  ? "bg-gradient-to-br from-[var(--neon-violet)] to-[var(--neon-pink)] glow-violet"
+                  : "bg-gradient-to-br from-[var(--neon-amber)] to-[var(--neon-pink)] glow-amber"
+              )}
+            >
+              {isCustomer ? (
+                <Shield className="h-6 w-6 text-white" strokeWidth={2.5} />
+              ) : (
+                <Crown className="h-6 w-6 text-white" strokeWidth={2.5} />
+              )}
             </div>
             <h2 className="text-xl font-bold">
               {done
                 ? "All set!"
                 : mode === "login"
-                ? "Welcome back"
-                : "Join ShadowVault"}
+                ? isCustomer
+                  ? "Welcome back, Gamer"
+                  : "Admin Sign In"
+                : isCustomer
+                ? "Join ShadowVault"
+                : "Create Admin Account"}
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
               {done
                 ? "Redirecting you to your dashboard…"
+                : isCustomer
+                ? mode === "login"
+                  ? "Access your downloads, orders & wishlist"
+                  : "Create an account to start buying premium files"
                 : mode === "login"
-                ? "Sign in to access your downloads & orders"
-                : "Create an account to start buying premium files"}
+                ? "Manage products, orders & analytics"
+                : "Provision a new administrator account"}
             </p>
           </div>
         </div>
+
+        {/* role selector */}
+        {!done && (
+          <div className="px-6 pt-5">
+            <div className="grid grid-cols-2 gap-2">
+              <RoleTab
+                active={isCustomer}
+                onClick={() => setOverride("customer")}
+                icon={Shield}
+                label="Customer"
+                hint="Buy & download"
+              />
+              <RoleTab
+                active={!isCustomer}
+                onClick={() => setOverride("admin")}
+                icon={ShieldCheck}
+                label="Admin"
+                hint="Manage store"
+              />
+            </div>
+          </div>
+        )}
 
         <AnimatePresence mode="wait">
           {done ? (
@@ -173,6 +241,11 @@ export function AuthModal() {
                 </div>
               )}
 
+              <div className="rounded-lg glass px-3 py-2 text-[11px] text-muted-foreground flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-[var(--neon-emerald)] shrink-0" />
+                {demoHint}
+              </div>
+
               <Button
                 type="submit"
                 disabled={loading}
@@ -244,6 +317,44 @@ function FieldRow({
       </Label>
       {children}
     </div>
+  );
+}
+
+function RoleTab({
+  active,
+  onClick,
+  icon: Icon,
+  label,
+  hint,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex flex-col items-start gap-0.5 rounded-xl border p-3 text-left transition-all",
+        active
+          ? "border-[var(--neon-violet)] bg-[var(--neon-violet)]/10"
+          : "border-white/10 glass hover:bg-white/5"
+      )}
+    >
+      <div className="flex items-center gap-1.5">
+        <Icon
+          className={cn(
+            "h-4 w-4",
+            active ? "text-[var(--neon-violet)]" : "text-muted-foreground"
+          )}
+        />
+        <span className="text-sm font-semibold">{label}</span>
+      </div>
+      <span className="text-[10px] text-muted-foreground">{hint}</span>
+    </button>
   );
 }
 
