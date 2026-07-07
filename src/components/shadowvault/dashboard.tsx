@@ -59,6 +59,8 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "./error-boundary";
+import { AddProductModal, AddCouponModal } from "./admin-forms";
+import type { Coupon as CouponType } from "@/lib/types";
 
 const statusStyles: Record<string, string> = {
   PAID: "bg-[var(--neon-emerald)]/20 text-[var(--neon-emerald)] border-[var(--neon-emerald)]/30",
@@ -559,10 +561,16 @@ function OrderRow({ order, expanded }: { order: Order; expanded?: boolean }) {
 /* ============================ ADMIN ============================ */
 
 function AdminDashboard() {
+  const [productRefreshKey, setProductRefreshKey] = useState(0);
   const { data: orders, loading: oloading } = useApi<Order[]>("/api/orders");
-  const { data: products } = useApi<Product[]>("/api/products?limit=12");
+  const { data: products } = useApi<Product[]>(
+    `/api/products?limit=12&_=${productRefreshKey}`
+  );
 
   const [tab, setTab] = useState("overview");
+  const [productModalOpen, setProductModalOpen] = useState(false);
+  const [couponModalOpen, setCouponModalOpen] = useState(false);
+  const [extraCoupons, setExtraCoupons] = useState<CouponType[]>([]);
   const tabsList = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "products", label: "Products", icon: Package },
@@ -789,7 +797,7 @@ function AdminDashboard() {
                 <h3 className="font-semibold">Product Management</h3>
                 <Button
                   size="sm"
-                  onClick={() => toast.info("Add product form (demo)")}
+                  onClick={() => setProductModalOpen(true)}
                   className="btn-magnetic bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0"
                 >
                   <Plus className="h-4 w-4 mr-1" />
@@ -984,6 +992,13 @@ function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* Add Product modal — real form that creates products via API */}
+      <AddProductModal
+        open={productModalOpen}
+        onOpenChange={setProductModalOpen}
+        onCreated={() => setProductRefreshKey((k) => k + 1)}
+      />
     </div>
   );
 }
@@ -998,50 +1013,95 @@ const sampleUsers = [
 ];
 
 function CouponManagement() {
-  const coupons = [
-    { code: "WELCOME10", type: "PERCENT", value: 10, used: 342, limit: 1000, expiry: "2026-12-31", active: true },
-    { code: "SHADOW20", type: "PERCENT", value: 20, used: 187, limit: 500, expiry: "2026-06-30", active: true },
-    { code: "FLAT200", type: "FLAT", value: 200, used: 91, limit: 300, expiry: "2026-09-30", active: true },
-    { code: "GAMER500", type: "FLAT", value: 500, used: 42, limit: 200, expiry: "2026-12-31", active: true },
-    { code: "FIRSTBUY", type: "PERCENT", value: 15, used: 812, limit: 2000, expiry: "2027-01-31", active: true },
-  ];
+  const { data: dbCoupons } = useApi<CouponType[]>("/api/coupons");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [newCoupons, setNewCoupons] = useState<CouponType[]>([]);
+
+  // merge DB coupons with newly created ones (new ones shown first)
+  const allCoupons = [...newCoupons, ...(dbCoupons ?? [])];
+
   return (
     <Card className="glass p-5">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h3 className="font-semibold">Coupon Management</h3>
-        <Button size="sm" onClick={() => toast.info("Create coupon form (demo)")} className="btn-magnetic bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0">
+        <Button
+          size="sm"
+          onClick={() => setModalOpen(true)}
+          className="btn-magnetic bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0"
+        >
           <Plus className="h-4 w-4 mr-1" />
           New Coupon
         </Button>
       </div>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {coupons.map((c) => {
-          const pct = Math.round((c.used / c.limit) * 100);
-          return (
-            <div key={c.code} className="grad-border p-4">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <div className="font-bold text-lg tracking-wide text-gradient">{c.code}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {c.type === "PERCENT" ? `${c.value}% off` : `₹${c.value} off`} · min ₹{c.type === "FLAT" ? "999" : "499"}
+
+      {allCoupons.length === 0 ? (
+        <div className="text-center py-12 text-sm text-muted-foreground">
+          No coupons yet. Click &quot;New Coupon&quot; to create one.
+        </div>
+      ) : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {allCoupons.map((c) => {
+            const used = c.usedCount ?? 0;
+            const limit = c.usageLimit ?? 100;
+            const pct = limit > 0 ? Math.round((used / limit) * 100) : 0;
+            const isNew = newCoupons.some((nc) => nc.id === c.id);
+            return (
+              <div key={c.id} className="grad-border p-4 relative">
+                {isNew && (
+                  <span className="absolute -top-2 -right-2 rounded-full bg-[var(--neon-emerald)] px-2 py-0.5 text-[9px] font-bold text-black">
+                    NEW
+                  </span>
+                )}
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <div className="font-bold text-lg tracking-wide text-gradient">
+                      {c.code}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {c.type === "PERCENT"
+                        ? `${c.value}% off`
+                        : `₹${c.value} off`}
+                      {c.minAmount ? ` · min ₹${c.minAmount}` : ""}
+                    </div>
                   </div>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[10px]",
+                      c.active
+                        ? "border-[var(--neon-emerald)]/40 text-[var(--neon-emerald)]"
+                        : "border-white/20 text-muted-foreground"
+                    )}
+                  >
+                    {c.active ? "ACTIVE" : "INACTIVE"}
+                  </Badge>
                 </div>
-                <Badge variant="outline" className="text-[10px] border-[var(--neon-emerald)]/40 text-[var(--neon-emerald)]">
-                  ACTIVE
-                </Badge>
-              </div>
-              <div className="mt-3">
-                <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
-                  <span>{c.used} used</span>
-                  <span>{c.limit - c.used} left</span>
+                <div className="mt-3">
+                  <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
+                    <span>{used} used</span>
+                    <span>{Math.max(0, limit - used)} left</span>
+                  </div>
+                  <Progress value={pct} className="h-1.5" />
                 </div>
-                <Progress value={pct} className="h-1.5" />
+                <div className="text-[11px] text-muted-foreground mt-2">
+                  Expires{" "}
+                  {new Date(c.expiry).toLocaleDateString("en-IN", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </div>
               </div>
-              <div className="text-[11px] text-muted-foreground mt-2">Expires {new Date(c.expiry).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
+
+      <AddCouponModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        onCreated={(c) => setNewCoupons((prev) => [c, ...prev])}
+      />
     </Card>
   );
 }

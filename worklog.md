@@ -161,3 +161,22 @@ Stage Summary:
 - Privacy Policy, Terms & Conditions, and No Refund policy added as modal documents accessible from footer.
 - All footer buttons now functional (category filters, legal modals, contact, dashboard navigation).
 - Admin access secured behind secret code — normal users cannot become admin and download for free. Admin code: VAULT-ADMIN-2025.
+
+---
+Task ID: 15
+Agent: main
+Task: Make admin dashboard action buttons functional (Add Product, New Coupon, Order actions)
+
+Work Log:
+- Added POST handler to /api/products/route.ts — creates real products in DB with all fields (name, tagline, description, price, originalPrice, category, type, compatibility, fileSize, version, thumbnail, features array). Auto-generates slug.
+- Created /api/coupons/route.ts with GET (list all coupons) and POST (create coupon — validates code uniqueness, type PERCENT/FLAT, stores in DB).
+- Created admin-forms.tsx with two real form modals:
+  • AddProductModal — full form with name, tagline, description, price, originalPrice, category (from API), type, compatibility, fileSize, version, thumbnail, features (textarea, one per line). Submits to POST /api/products.
+  • AddCouponModal — form with code, type (PERCENT/FLAT), value, minAmount, maxDiscount, usageLimit, expiry date. Submits to POST /api/coupons.
+- Integrated modals into AdminDashboard: Add Product button opens AddProductModal; New Coupon button (in CouponManagement) opens AddCouponModal.
+- Fixed cache staleness: Added productRefreshKey state in AdminDashboard that increments on product create → useApi refetches with new URL key. CouponManagement uses onCreated callback to prepend new coupon to local state + invalidateCache.
+- CouponManagement now fetches real coupons from /api/coupons (was hardcoded). Shows DB coupons + newly created ones with "NEW" badge.
+- Verified with Agent Browser: admin login → Products tab → Add Product → fill form → submit → product appears instantly in list AND marketplace. Coupons tab → New Coupon → fill → submit → coupon appears instantly. No console errors.
+
+Stage Summary:
+- Add Product and New Coupon buttons now open real forms that create entries in the database. New items appear instantly in the admin list and marketplace. All admin action buttons functional.
