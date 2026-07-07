@@ -1,0 +1,4 @@
+Aim Booster Pro v1.0
+Installation: Extract and run aim_booster.exe
+Config: Edit config.json for sensitivity settings
+© ShadowVault

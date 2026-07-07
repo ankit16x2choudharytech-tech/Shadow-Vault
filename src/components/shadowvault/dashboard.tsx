@@ -212,6 +212,49 @@ function CustomerDashboard({ email }: { email: string }) {
     return { downloads: deduped, purchasedItems: items };
   }, [paidOrders]);
 
+  // Trigger the actual file download for a purchased product.
+  // Looks up the product to find its stored file URL (telegramFileId field),
+  // then opens it in a new tab which the browser downloads.
+  const handleDownload = async (productId: string, name: string) => {
+    try {
+      // find the product in the already-fetched list, else fetch all
+      let product = (allProducts ?? []).find((p) => p.id === productId);
+      if (!product) {
+        const res = await fetch("/api/products?limit=200");
+        const json = await res.json();
+        const all = (json.data ?? json) as Product[];
+        product = all.find((p) => p.id === productId);
+      }
+      if (!product) {
+        toast.error("Product not found");
+        return;
+      }
+      const fileUrl = product.telegramFileId;
+      if (!fileUrl || fileUrl.startsWith("BAAC")) {
+        toast.error("No file available for this product", {
+          description: "The seller hasn't uploaded a file yet.",
+        });
+        return;
+      }
+      // trigger the browser download
+      const a = window.document.createElement("a");
+      a.href = fileUrl;
+      a.download = name || "download";
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      window.document.body.appendChild(a);
+      a.click();
+      window.document.body.removeChild(a);
+      toast.success(`Downloading ${name}`, {
+        description: "Your file is being delivered securely.",
+      });
+    } catch {
+      toast.error("Download failed", {
+        description: "Please try again or contact support.",
+      });
+    }
+  };
+
   const [tab, setTab] = useState("overview");
   const tabsList = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -347,11 +390,7 @@ function CustomerDashboard({ email }: { email: string }) {
                       <span>{it.type}</span>
                     </div>
                     <Button
-                      onClick={() =>
-                        toast.success(`Download started for ${it.name}`, {
-                          description: "Secure token generated · valid for 15 minutes",
-                        })
-                      }
+                      onClick={() => handleDownload(it.productId, it.name)}
                       className="w-full mt-3 btn-magnetic bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0 h-9"
                     >
                       <Download className="h-4 w-4 mr-1.5" />

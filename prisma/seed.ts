@@ -759,7 +759,7 @@ async function main() {
         compatibility: p.compatibility,
         fileSize: p.fileSize,
         releaseDate: p.releaseDate,
-        telegramFileId: randomToken(),
+        telegramFileId: "/uploads/sample-readme.txt",
         status: "ACTIVE",
         rating: p.rating,
         sales: p.sales,

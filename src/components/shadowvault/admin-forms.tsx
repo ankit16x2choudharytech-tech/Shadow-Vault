@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Package, Ticket, X } from "lucide-react";
+import { Loader2, Package, Ticket, X, Upload, FileCheck2, FileUp } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useApi, invalidateCache } from "@/lib/use-api";
@@ -36,6 +36,9 @@ export function AddProductModal({
 }) {
   const { data: categories } = useApi<Category[]>("/api/categories");
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string>("");
   const [form, setForm] = useState({
     name: "",
     tagline: "",
@@ -51,7 +54,7 @@ export function AddProductModal({
     features: "",
   });
 
-  const reset = () =>
+  const reset = () => {
     setForm({
       name: "",
       tagline: "",
@@ -66,11 +69,53 @@ export function AddProductModal({
       thumbnail: "",
       features: "",
     });
+    setFileUrl(null);
+    setFileName("");
+  };
+
+  // upload the selected file to /api/upload and store the returned URL
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Upload failed");
+      setFileUrl(json.url);
+      setFileName(file.name);
+      // auto-fill file size if empty (human readable)
+      if (!form.fileSize) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        setForm((f) => ({
+          ...f,
+          fileSize: file.size >= 1024 * 1024 ? `${sizeMB} MB` : `${Math.round(file.size / 1024)} KB`,
+        }));
+      }
+      toast.success("File uploaded", {
+        description: `${file.name} is ready for delivery.`,
+      });
+    } catch (err) {
+      toast.error("Upload failed", {
+        description: (err as Error).message,
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.tagline || !form.description || !form.price) {
       toast.error("Please fill all required fields");
+      return;
+    }
+    if (!fileUrl) {
+      toast.error("Please upload the product file", {
+        description: "Customers need a file to download after purchase.",
+      });
       return;
     }
     setLoading(true);
@@ -94,6 +139,7 @@ export function AddProductModal({
           fileSize: form.fileSize || undefined,
           version: form.version,
           thumbnail: form.thumbnail || undefined,
+          telegramFileId: fileUrl, // the uploaded file's URL — used for delivery
           features,
         }),
       });
@@ -280,10 +326,69 @@ export function AddProductModal({
               />
             </Field>
 
+            {/* File upload — the actual downloadable file */}
+            <div>
+              <Label className="flex items-center gap-1.5 mb-1.5 text-xs font-medium text-muted-foreground">
+                <FileUp className="h-3.5 w-3.5" />
+                Product File * <span className="text-[var(--neon-pink)]">(required — customers download this)</span>
+              </Label>
+              {fileUrl ? (
+                <div className="rounded-lg border border-[var(--neon-emerald)]/40 bg-[var(--neon-emerald)]/10 p-3 flex items-center gap-3">
+                  <div className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--neon-emerald)]/20">
+                    <FileCheck2 className="h-5 w-5 text-[var(--neon-emerald)]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{fileName}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Uploaded · ready for delivery
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFileUrl(null);
+                      setFileName("");
+                    }}
+                    className="grid h-7 w-7 place-items-center rounded-lg glass hover:bg-white/10 text-muted-foreground hover:text-[var(--neon-pink)]"
+                    aria-label="Remove file"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <label className="group flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-white/15 hover:border-[var(--neon-violet)]/50 hover:bg-white/5 transition-colors p-6 cursor-pointer">
+                  <input
+                    type="file"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                  {uploading ? (
+                    <>
+                      <Loader2 className="h-7 w-7 animate-spin text-[var(--neon-violet)]" />
+                      <span className="text-sm text-muted-foreground">Uploading…</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid h-10 w-10 place-items-center rounded-full bg-[var(--neon-violet)]/10 group-hover:bg-[var(--neon-violet)]/20 transition-colors">
+                        <Upload className="h-5 w-5 text-[var(--neon-violet)]" />
+                      </div>
+                      <div className="text-center">
+                        <span className="text-sm font-medium">Click to upload</span>
+                        <span className="block text-[11px] text-muted-foreground mt-0.5">
+                          .zip · .rar · .exe · .apk · .json · max 50 MB
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </label>
+              )}
+            </div>
+
             <div className="flex gap-2 pt-2">
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || uploading}
                 className="flex-1 btn-magnetic h-11 bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0 glow-violet"
               >
                 {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}

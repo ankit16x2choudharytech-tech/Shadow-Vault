@@ -180,3 +180,22 @@ Work Log:
 
 Stage Summary:
 - Add Product and New Coupon buttons now open real forms that create entries in the database. New items appear instantly in the admin list and marketplace. All admin action buttons functional.
+
+---
+Task ID: 16
+Agent: main
+Task: Add file upload to Add Product form + make customer download work with real files
+
+Work Log:
+- Created /api/upload route — accepts multipart file upload, saves to public/uploads/, returns public URL. 50MB max size guard.
+- Updated AddProductModal with file upload UI: drag-drop styled zone with click-to-upload, shows uploaded file name with green checkmark + remove button. Auto-fills file size field. File upload is REQUIRED — form won't submit without it.
+- Updated POST /api/products to accept telegramFileId (the uploaded file URL) from the form.
+- Updated customer dashboard Download button: handleDownload() looks up the product, gets its file URL (telegramFileId), creates an anchor element with download attribute, and triggers the browser download. Shows success toast.
+- CRITICAL FIX: Added SonnerToaster to layout.tsx — all toast.success/error calls throughout the app use `sonner` library but the Sonner Toaster component was never rendered (only the radix Toaster was). This is why toasts weren't appearing. Now both toasters render.
+- Updated seed script: all 12 seeded products now have telegramFileId="/uploads/sample-readme.txt" instead of fake tokens, so downloads work out of the box.
+- Created public/uploads/sample-readme.txt as a demo downloadable file.
+- Verified: admin Add Product with file upload works (file saved to uploads/, product created with correct URL); customer Download button triggers actual file download + shows "Downloading [product]" toast.
+
+Stage Summary:
+- Add Product form now requires a file upload. Admin uploads the actual downloadable file, it's saved to the server, and the product stores its URL. Customers can download purchased files directly from their dashboard.
+- Fixed the missing Sonner Toaster which was preventing ALL toast notifications from appearing across the entire app.
