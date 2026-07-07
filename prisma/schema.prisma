@@ -1,0 +1,117 @@
+// ShadowVault schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  icon        String    // lucide icon name
+  description String?
+  color       String    @default("#a855f7") // accent color
+  createdAt   DateTime  @default(now())
+}
+
+model Product {
+  id            String    @id @default(cuid())
+  name          String
+  slug          String    @unique
+  tagline       String
+  description   String
+  thumbnail     String
+  banner        String
+  version       String    @default("1.0.0")
+  price         Int       // in INR paise? store rupees as integer
+  originalPrice Int?
+  category      String    // category slug
+  type          String    // Panel | Mod Menu | Emulator Tool | Config | Premium File
+  compatibility String    // "PC, Android, iOS"
+  fileSize      String    // "24.5 MB"
+  releaseDate   DateTime
+  telegramFileId String   // stored reference, never direct link
+  status        String    @default("ACTIVE") // ACTIVE | DRAFT | ARCHIVED
+  rating        Float     @default(0)
+  sales         Int       @default(0)
+  views         Int       @default(0)
+  features      String    @default("[]") // JSON array of strings
+  screenshots   String    @default("[]") // JSON array of image urls
+  whatsNew      String    @default("[]") // JSON array of strings
+  requirements  String    @default("[]") // JSON array of strings
+  badge         String?   // HOT | NEW | TRENDING | DEAL
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  reviews       Review[]
+  orderItems    OrderItem[]
+  wishlistedBy  String    @default("[]") // JSON array of user ids (demo)
+
+  @@index([category])
+  @@index([type])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  userName  String
+  userAvatar String?
+  rating    Int      // 1-5
+  comment   String
+  verified  Boolean  @default(false)
+  likes     Int      @default(0)
+  date      DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  orderNumber  String      @unique
+  customerName String
+  customerEmail String
+  total        Int         // INR rupees
+  status       String      @default("PENDING") // PENDING | PAID | FAILED | REFUNDED | CANCELLED
+  paymentId    String?
+  paymentMethod String     @default("RAZORPAY")
+  itemsJson    String      // JSON of items snapshot
+  couponCode   String?
+  discount     Int         @default(0)
+  createdAt    DateTime    @default(now())
+  items        OrderItem[]
+
+  @@index([status])
+  @@index([customerEmail])
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  productId  String
+  name       String
+  price      Int
+  version    String
+  thumbnail  String
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product    Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+}
+
+model Coupon {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  type        String   // PERCENT | FLAT
+  value       Int      // percent or flat rupees
+  minAmount   Int      @default(0)
+  maxDiscount Int?     // for percent type
+  usageLimit  Int      @default(100)
+  usedCount   Int      @default(0)
+  expiry      DateTime
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
