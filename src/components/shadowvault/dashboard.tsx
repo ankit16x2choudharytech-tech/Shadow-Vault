@@ -247,6 +247,7 @@ function CustomerDashboard({ email }: { email: string }) {
           return (
             <button
               key={t.id}
+              type="button"
               onClick={() => setTab(t.id)}
               className={cn(
                 "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all shrink-0",
@@ -652,6 +653,7 @@ function AdminDashboard() {
           return (
             <button
               key={t.id}
+              type="button"
               onClick={() => setTab(t.id)}
               className={cn(
                 "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all shrink-0",

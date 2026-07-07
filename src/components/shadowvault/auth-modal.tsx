@@ -55,9 +55,7 @@ export function AuthModal() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1100));
-    setLoading(false);
-    setDone(true);
+    await new Promise((r) => setTimeout(r, 900));
 
     const name =
       form.name.trim() ||
@@ -70,12 +68,15 @@ export function AuthModal() {
     toast.success(
       `${isCustomer ? "Welcome back" : "Admin access granted"}, ${name}!`
     );
-    setTimeout(() => {
-      setDone(false);
-      setAuthOpen(false);
-      setView("dashboard");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }, 1400);
+    // Close the modal + navigate IMMEDIATELY so the dialog overlay can't block
+    // dashboard buttons. The success state is only shown while the modal
+    // closes (brief), then reset.
+    setLoading(false);
+    setAuthOpen(false);
+    setView("dashboard");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setDone(true);
+    setTimeout(() => setDone(false), 700);
   };
 
   return (

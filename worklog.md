@@ -106,3 +106,17 @@ Work Log:
 
 Stage Summary:
 - Root cause was hydration mismatch from Zustand persist. Fixed with skipHydration + manual rehydration gate. All buttons now work reliably on every load, including reloads with persisted login state.
+
+---
+Task ID: 12
+Agent: main
+Task: Fix dashboard buttons still not working after login
+
+Work Log:
+- Root cause: AuthModal kept the dialog OPEN for 1.4s after successful login (showing "All set!" success state) while simultaneously calling login() + setView("dashboard"). The dashboard rendered BEHIND the still-open modal overlay, which intercepted all clicks → every dashboard button appeared dead until the modal finally closed.
+- Fix: In AuthModal submit(), close the modal + navigate immediately after login() instead of waiting. Reordered: setLoading(false) → setAuthOpen(false) → setView("dashboard") → scroll → setDone(true) for a brief flash, reset after 700ms. Modal overlay can no longer block the dashboard.
+- Also added type="button" to all dashboard sub-tab buttons (customer + admin) to prevent accidental form submission.
+- Verified with Agent Browser: customer login → modal closes instantly → dashboard visible → all sub-tabs (Overview/Downloads/Orders/Wishlist/Profile) work. Admin login → same → all admin tabs (Overview/Products/Orders/Coupons/Users) work. No console errors.
+
+Stage Summary:
+- Dashboard buttons now work immediately after login. The auth modal no longer lingers over the dashboard blocking clicks.
