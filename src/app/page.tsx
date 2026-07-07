@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { Background } from "@/components/shadowvault/background";
 import { Navbar } from "@/components/shadowvault/navbar";
@@ -22,6 +22,14 @@ import { AuthModal } from "@/components/shadowvault/auth-modal";
 export default function Home() {
   const { view } = useStore();
 
+  // Rehydrate persisted state from localStorage after mount. The server and
+  // first client render both use default state (no localStorage), so there's
+  // no hydration mismatch. After rehydrate, components re-render with actual
+  // persisted state (login, cart, wishlist).
+  useEffect(() => {
+    void useStore.persist.rehydrate();
+  }, []);
+
   return (
     <div className="relative min-h-screen flex flex-col">
       <LoadingScreen />
@@ -31,50 +39,30 @@ export default function Home() {
         <Navbar />
 
         <main className="flex-1">
-          <AnimatePresence mode="wait">
-            {view === "home" && (
-              <motion.div
-                key="home"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Hero />
-                <Ticker />
-                <Categories />
-                <FeaturedProducts />
-                <Features />
-                <Testimonials />
-                <FAQ />
-                <Newsletter />
-              </motion.div>
-            )}
+          {view === "home" && (
+            <div key="home" className="animate-float-up">
+              <Hero />
+              <Ticker />
+              <Categories />
+              <FeaturedProducts />
+              <Features />
+              <Testimonials />
+              <FAQ />
+              <Newsletter />
+            </div>
+          )}
 
-            {view === "marketplace" && (
-              <motion.div
-                key="marketplace"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Marketplace />
-              </motion.div>
-            )}
+          {view === "marketplace" && (
+            <div key="marketplace" className="animate-float-up">
+              <Marketplace />
+            </div>
+          )}
 
-            {view === "dashboard" && (
-              <motion.div
-                key="dashboard"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Dashboard />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {view === "dashboard" && (
+            <div key="dashboard" className="animate-float-up">
+              <Dashboard />
+            </div>
+          )}
         </main>
 
         <Footer />

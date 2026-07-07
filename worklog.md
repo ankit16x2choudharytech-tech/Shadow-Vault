@@ -120,3 +120,20 @@ Work Log:
 
 Stage Summary:
 - Dashboard buttons now work immediately after login. The auth modal no longer lingers over the dashboard blocking clicks.
+
+---
+Task ID: 13
+Agent: main
+Task: Fix admin dashboard control buttons not working (root cause: AnimatePresence + hydration)
+
+Work Log:
+- Root cause #1: page.tsx used `AnimatePresence mode="wait"` for view switching. This blocks the new view from mounting until the old view's exit animation completes. If exit animation is interrupted (fast clicks), the new view NEVER appears — buttons appear dead.
+- Root cause #2: Complex `useHydrated()` hook with `onRehydrateStorage` callback that mutated state directly (doesn't trigger re-render in Zustand). This caused rehydrate to loop and potentially reset state.
+- Root cause #3: Dashboard.tsx also used `AnimatePresence mode="wait"` for sub-tabs — same blocking issue.
+- Fix: Removed ALL `AnimatePresence` and `motion` components from both page.tsx and dashboard.tsx. Replaced with plain conditional rendering + CSS `animate-float-up` class for entrance animation.
+- Fix: Simplified hydration to the standard Next.js pattern: `skipHydration: true` on the store + `useEffect(() => useStore.persist.rehydrate(), [])` in page.tsx. Removed `useHydrated()` hook, `_hasHydrated` flag, and `onRehydrateStorage` callback entirely.
+- Fix: Removed `useHydrated()` usage from Navbar and Dashboard — they now use raw store values directly (safe because page.tsx only renders them after mount).
+- Verified with Agent Browser (using JS .click() which properly triggers React synthetic events, unlike agent-browser's click command): admin login → all 5 admin tabs (Overview/Products/Orders/Coupons/Users) work; reload with persisted state → all tabs work; customer login → tabs work. No console errors. VLM confirmed admin dashboard renders correctly with all elements.
+
+Stage Summary:
+- All buttons now work reliably. Root causes were AnimatePresence blocking view transitions and a complex hydration pattern. Simplified to plain conditional rendering + standard skipHydration pattern.

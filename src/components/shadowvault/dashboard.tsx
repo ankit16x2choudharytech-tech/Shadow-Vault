@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
   Download,
@@ -27,7 +26,7 @@ import {
   Crown,
   Zap,
 } from "lucide-react";
-import { useStore, useHydrated } from "@/lib/store";
+import { useStore } from "@/lib/store";
 import { useApi } from "@/lib/use-api";
 import type { Order, Product } from "@/lib/types";
 import { Card } from "@/components/ui/card";
@@ -72,18 +71,13 @@ const statusStyles: Record<string, string> = {
 
 export function Dashboard() {
   const { userRole, userName, customerEmail, setAuthOpen } = useStore();
-  // Before hydration, treat as logged-out so SSR and first client render match
-  const hydrated = useHydrated();
-  const effUserRole = hydrated ? userRole : null;
 
   // Not logged in → prompt to sign in
-  if (effUserRole === null) {
+  if (userRole === null) {
     return (
       <section className="relative pt-24 pb-20 min-h-screen">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="mb-6"
           >
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
@@ -92,11 +86,9 @@ export function Dashboard() {
             <p className="text-muted-foreground mt-2">
               Sign in to access your dashboard.
             </p>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="grad-border p-8 sm:p-12 max-w-2xl mx-auto text-center"
           >
             <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-[var(--neon-violet)] to-[var(--neon-pink)] glow-violet mb-5">
@@ -127,20 +119,18 @@ export function Dashboard() {
                 Sign in as Admin
               </Button>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
     );
   }
 
-  const isAdmin = effUserRole === "admin";
+  const isAdmin = userRole === "admin";
 
   return (
     <section className="relative pt-24 pb-20 min-h-screen">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="mb-6 flex items-start justify-between gap-4 flex-wrap"
         >
           <div>
@@ -184,7 +174,7 @@ export function Dashboard() {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {isAdmin ? (
           <ErrorBoundary>
@@ -263,13 +253,10 @@ function CustomerDashboard({ email }: { email: string }) {
         })}
       </div>
 
-      <AnimatePresence mode="wait">
+      <div>
         {tab === "overview" && (
-          <motion.div
+          <div
             key="overview"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
             className="space-y-6"
           >
             {/* stat cards */}
@@ -335,15 +322,12 @@ function CustomerDashboard({ email }: { email: string }) {
                 {downloads.length === 0 && <EmptyState text="No purchases to track updates for yet." />}
               </div>
             </Card>
-          </motion.div>
+          </div>
         )}
 
         {tab === "downloads" && (
-          <motion.div
+          <div
             key="downloads"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
           >
             {downloads.length === 0 ? (
               <EmptyState
@@ -384,15 +368,12 @@ function CustomerDashboard({ email }: { email: string }) {
                 ))}
               </div>
             )}
-          </motion.div>
+          </div>
         )}
 
         {tab === "orders" && (
-          <motion.div
+          <div
             key="orders"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
           >
             <Card className="glass p-5">
               <h3 className="font-semibold mb-4">Order History</h3>
@@ -412,15 +393,12 @@ function CustomerDashboard({ email }: { email: string }) {
                 </div>
               )}
             </Card>
-          </motion.div>
+          </div>
         )}
 
         {tab === "wishlist" && (
-          <motion.div
+          <div
             key="wishlist"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
           >
             {wishedProducts.length === 0 ? (
               <EmptyState icon={Heart} text="Your wishlist is empty. Save products to buy later." />
@@ -474,15 +452,12 @@ function CustomerDashboard({ email }: { email: string }) {
                 ))}
               </div>
             )}
-          </motion.div>
+          </div>
         )}
 
         {tab === "profile" && (
-          <motion.div
+          <div
             key="profile"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
             className="grid lg:grid-cols-3 gap-6"
           >
             <Card className="glass p-6 lg:col-span-2">
@@ -532,9 +507,9 @@ function CustomerDashboard({ email }: { email: string }) {
                 Withdraw to Bank
               </Button>
             </Card>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }
@@ -669,13 +644,10 @@ function AdminDashboard() {
         })}
       </div>
 
-      <AnimatePresence mode="wait">
+      <div>
         {tab === "overview" && (
-          <motion.div
+          <div
             key="overview"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
             className="space-y-6"
           >
             {/* stat cards */}
@@ -814,15 +786,12 @@ function AdminDashboard() {
                 )}
               </Card>
             </div>
-          </motion.div>
+          </div>
         )}
 
         {tab === "products" && (
-          <motion.div
+          <div
             key="products"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
           >
             <Card className="glass p-5">
               <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
@@ -886,15 +855,12 @@ function AdminDashboard() {
                 </Table>
               </div>
             </Card>
-          </motion.div>
+          </div>
         )}
 
         {tab === "orders" && (
-          <motion.div
+          <div
             key="orders"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
           >
             <Card className="glass p-5">
               <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
@@ -949,26 +915,20 @@ function AdminDashboard() {
                 </Table>
               </div>
             </Card>
-          </motion.div>
+          </div>
         )}
 
         {tab === "coupons" && (
-          <motion.div
+          <div
             key="coupons"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
           >
             <CouponManagement />
-          </motion.div>
+          </div>
         )}
 
         {tab === "users" && (
-          <motion.div
+          <div
             key="users"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
           >
             <Card className="glass p-5">
               <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
@@ -1030,9 +990,9 @@ function AdminDashboard() {
                 </TableBody>
               </Table>
             </Card>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }

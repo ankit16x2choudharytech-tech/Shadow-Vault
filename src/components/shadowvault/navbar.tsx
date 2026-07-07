@@ -17,7 +17,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useStore, cartCount, useHydrated } from "@/lib/store";
+import { useStore, cartCount } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -52,14 +52,6 @@ export function Navbar() {
     userName,
     logout,
   } = useStore();
-  // Gate persisted-state-dependent UI until hydration completes to avoid
-  // SSR/client mismatch (server has no localStorage → renders logged-out /
-  // empty cart; client may have persisted login/cart). Rendering the server-
-  // consistent state first prevents hydration errors that break event handlers.
-  const hydrated = useHydrated();
-  const effUserRole = hydrated ? userRole : null;
-  const effCart = hydrated ? cart : [];
-  const effWishlist = hydrated ? wishlist : [];
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [localQuery, setLocalQuery] = useState("");
@@ -183,14 +175,14 @@ export function Navbar() {
             >
               <ShoppingCart className="h-5 w-5" />
               <AnimatePresence>
-                {effCart.length > 0 && (
+                {cart.length > 0 && (
                   <motion.span
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     exit={{ scale: 0 }}
                     className="absolute -top-1 -right-1 grid h-4 min-w-[18px] px-1 place-items-center rounded-full bg-[var(--neon-pink)] text-[10px] font-bold text-white"
                   >
-                    {cartCount(effCart)}
+                    {cartCount(cart)}
                   </motion.span>
                 )}
               </AnimatePresence>
@@ -204,15 +196,15 @@ export function Navbar() {
               aria-label="Wishlist"
             >
               <User className="h-5 w-5" />
-              {effWishlist.length > 0 && (
+              {wishlist.length > 0 && (
                 <span className="absolute -top-1 -right-1 grid h-4 min-w-16 px-1 place-items-center rounded-full bg-[var(--neon-amber)] text-[9px] font-bold text-black">
-                  {effWishlist.length}
+                  {wishlist.length}
                 </span>
               )}
             </Button>
 
             {/* Auth: user menu when logged in, Sign In button when logged out */}
-            {effUserRole ? (
+            {userRole ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -222,7 +214,7 @@ export function Navbar() {
                     <div
                       className={cn(
                         "grid h-7 w-7 place-items-center rounded-full text-white text-[11px] font-bold",
-                        effUserRole === "admin"
+                        userRole === "admin"
                           ? "bg-gradient-to-br from-[var(--neon-amber)] to-[var(--neon-pink)]"
                           : "bg-gradient-to-br from-[var(--neon-violet)] to-[var(--neon-pink)]"
                       )}
@@ -236,12 +228,12 @@ export function Navbar() {
                       <div
                         className={cn(
                           "text-[9px] font-semibold uppercase tracking-wide",
-                          effUserRole === "admin"
+                          userRole === "admin"
                             ? "text-[var(--neon-amber)]"
                             : "text-[var(--neon-violet)]"
                         )}
                       >
-                        {effUserRole}
+                        {userRole}
                       </div>
                     </div>
                     <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -252,7 +244,7 @@ export function Navbar() {
                   className="glass-strong border-white/10 w-56"
                 >
                   <DropdownMenuLabel className="flex items-center gap-2">
-                    {effUserRole === "admin" ? (
+                    {userRole === "admin" ? (
                       <Crown className="h-4 w-4 text-[var(--neon-amber)]" />
                     ) : (
                       <Shield className="h-4 w-4 text-[var(--neon-violet)]" />
@@ -260,7 +252,7 @@ export function Navbar() {
                     <div className="leading-tight">
                       <div className="text-sm font-medium">{userName}</div>
                       <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                        {effUserRole === "admin" ? "Administrator" : "Customer"}
+                        {userRole === "admin" ? "Administrator" : "Customer"}
                       </div>
                     </div>
                   </DropdownMenuLabel>
@@ -270,9 +262,9 @@ export function Navbar() {
                     className="gap-2 cursor-pointer focus:bg-white/10"
                   >
                     <LayoutDashboard className="h-4 w-4" />
-                    {effUserRole === "admin" ? "Admin Console" : "My Dashboard"}
+                    {userRole === "admin" ? "Admin Console" : "My Dashboard"}
                   </DropdownMenuItem>
-                  {effUserRole === "customer" && (
+                  {userRole === "customer" && (
                     <DropdownMenuItem
                       onClick={() => go("marketplace")}
                       className="gap-2 cursor-pointer focus:bg-white/10"
@@ -354,13 +346,13 @@ export function Navbar() {
                       </button>
                     );
                   })}
-                  {effUserRole ? (
+                  {userRole ? (
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 rounded-lg glass px-3 py-2.5">
                         <div
                           className={cn(
                             "grid h-8 w-8 place-items-center rounded-full text-white text-xs font-bold",
-                            effUserRole === "admin"
+                            userRole === "admin"
                               ? "bg-gradient-to-br from-[var(--neon-amber)] to-[var(--neon-pink)]"
                               : "bg-gradient-to-br from-[var(--neon-violet)] to-[var(--neon-pink)]"
                           )}
@@ -372,12 +364,12 @@ export function Navbar() {
                           <div
                             className={cn(
                               "text-[10px] font-semibold uppercase tracking-wide",
-                              effUserRole === "admin"
+                              userRole === "admin"
                                 ? "text-[var(--neon-amber)]"
                                 : "text-[var(--neon-violet)]"
                             )}
                           >
-                            {effUserRole === "admin" ? "Administrator" : "Customer"}
+                            {userRole === "admin" ? "Administrator" : "Customer"}
                           </div>
                         </div>
                       </div>
