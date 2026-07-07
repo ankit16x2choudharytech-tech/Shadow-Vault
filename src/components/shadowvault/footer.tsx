@@ -9,25 +9,95 @@ import {
   Mail,
   Send,
 } from "lucide-react";
-import { useStore } from "@/lib/store";
+import { useStore, type LegalDoc } from "@/lib/store";
+import { toast } from "sonner";
 
-const cols = [
-  {
-    title: "Marketplace",
-    links: ["Game Panels", "Private Tools", "Configs", "Premium Files", "Subscriptions"],
-  },
-  {
-    title: "Company",
-    links: ["About Us", "Careers", "Press Kit", "Affiliate Program", "Contact"],
-  },
-  {
-    title: "Support",
-    links: ["Help Center", "Track Order", "Refund Policy", "Terms of Service", "Privacy Policy"],
-  },
+// Map footer label → category slug for marketplace filtering
+const categorySlugMap: Record<string, string> = {
+  "Game Panels": "game-panels",
+  "Private Tools": "private-tools",
+  "Configs": "configs",
+  "Premium Files": "premium-files",
+  "Subscriptions": "subscriptions",
+};
+
+const legalLinkMap: Record<string, LegalDoc> = {
+  "Refund Policy": "refund",
+  "Terms of Service": "terms",
+  "Privacy Policy": "privacy",
+};
+
+const marketplaceLinks = [
+  "Game Panels",
+  "Private Tools",
+  "Configs",
+  "Premium Files",
+  "Subscriptions",
+];
+const companyLinks = [
+  "About Us",
+  "Careers",
+  "Press Kit",
+  "Affiliate Program",
+  "Contact",
+];
+const supportLinks = [
+  "Help Center",
+  "Track Order",
+  "Refund Policy",
+  "Terms of Service",
+  "Privacy Policy",
 ];
 
 export function Footer() {
-  const { setView } = useStore();
+  const { setView, setCategory, setLegal, customerEmail } = useStore();
+
+  const handleMarketplaceLink = (label: string) => {
+    const slug = categorySlugMap[label];
+    if (slug) {
+      setCategory(slug);
+      setView("marketplace");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const handleCompanyLink = (label: string) => {
+    if (label === "Contact") {
+      window.open("mailto:hello@shadowvault.in", "_blank");
+      return;
+    }
+    if (label === "Affiliate Program") {
+      toast.info("Affiliate program coming soon!", {
+        description: "Join the newsletter to get early access.",
+      });
+      return;
+    }
+    toast.info(`${label}`, {
+      description: "This section is coming soon. Stay tuned!",
+    });
+  };
+
+  const handleSupportLink = (label: string) => {
+    const legalType = legalLinkMap[label];
+    if (legalType) {
+      setLegal(legalType);
+      return;
+    }
+    if (label === "Help Center") {
+      setLegal("refund"); // open refund policy as help landing
+      return;
+    }
+    if (label === "Track Order") {
+      if (customerEmail) {
+        setView("dashboard");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        toast.info("Please sign in to track your orders.");
+      }
+      return;
+    }
+  };
+
   return (
     <footer className="relative mt-auto border-t border-white/10 glass-strong">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-14">
@@ -61,24 +131,59 @@ export function Footer() {
             </div>
           </div>
 
-          {/* link columns */}
-          {cols.map((col) => (
-            <div key={col.title}>
-              <h4 className="font-semibold text-sm mb-4">{col.title}</h4>
-              <ul className="space-y-2.5">
-                {col.links.map((l) => (
-                  <li key={l}>
-                    <button
-                      onClick={() => setView("marketplace")}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
-                    >
-                      {l}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          {/* Marketplace column */}
+          <div>
+            <h4 className="font-semibold text-sm mb-4">Marketplace</h4>
+            <ul className="space-y-2.5">
+              {marketplaceLinks.map((l) => (
+                <li key={l}>
+                  <button
+                    type="button"
+                    onClick={() => handleMarketplaceLink(l)}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
+                  >
+                    {l}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Company column */}
+          <div>
+            <h4 className="font-semibold text-sm mb-4">Company</h4>
+            <ul className="space-y-2.5">
+              {companyLinks.map((l) => (
+                <li key={l}>
+                  <button
+                    type="button"
+                    onClick={() => handleCompanyLink(l)}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
+                  >
+                    {l}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Support column */}
+          <div>
+            <h4 className="font-semibold text-sm mb-4">Support</h4>
+            <ul className="space-y-2.5">
+              {supportLinks.map((l) => (
+                <li key={l}>
+                  <button
+                    type="button"
+                    onClick={() => handleSupportLink(l)}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
+                  >
+                    {l}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
 
         {/* trust badges */}
@@ -100,9 +205,32 @@ export function Footer() {
 
         <div className="mt-8 pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
           <p>© {new Date().getFullYear()} ShadowVault Technologies Pvt. Ltd. · Made in India 🇮🇳</p>
-          <p className="text-center sm:text-right">
-            All products are for legitimate use only. Misuse may violate game terms of service.
-          </p>
+          <div className="flex items-center gap-4 flex-wrap justify-center">
+            <button
+              type="button"
+              onClick={() => setLegal("privacy")}
+              className="hover:text-foreground transition-colors"
+            >
+              Privacy
+            </button>
+            <button
+              type="button"
+              onClick={() => setLegal("terms")}
+              className="hover:text-foreground transition-colors"
+            >
+              Terms
+            </button>
+            <button
+              type="button"
+              onClick={() => setLegal("refund")}
+              className="hover:text-foreground transition-colors"
+            >
+              No Refund Policy
+            </button>
+            <span className="text-center sm:text-right">
+              All products are for legitimate use only.
+            </span>
+          </div>
         </div>
       </div>
     </footer>

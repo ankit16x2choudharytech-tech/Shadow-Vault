@@ -98,25 +98,16 @@ export function Dashboard() {
               You&apos;re not signed in yet
             </h2>
             <p className="text-muted-foreground mt-2 max-w-md mx-auto">
-              Customers see their downloads, orders & wishlist. Admins manage
-              products, orders, coupons & analytics. Pick your role to
-              continue.
+              Sign in to access your downloads, orders, wishlist &amp; profile.
+              New here? Create an account in seconds.
             </p>
             <div className="flex flex-col sm:flex-row gap-2 justify-center mt-6">
               <Button
-                onClick={() => setAuthOpen(true, "customer")}
+                onClick={() => setAuthOpen(true)}
                 className="btn-magnetic bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0"
               >
                 <User className="h-4 w-4 mr-2" />
-                Sign in as Customer
-              </Button>
-              <Button
-                onClick={() => setAuthOpen(true, "admin")}
-                variant="outline"
-                className="glass border-[var(--neon-amber)]/40 text-[var(--neon-amber)] hover:bg-[var(--neon-amber)]/10"
-              >
-                <ShieldCheck className="h-4 w-4 mr-2" />
-                Sign in as Admin
+                Sign In
               </Button>
             </div>
           </div>
@@ -900,7 +891,7 @@ function AdminDashboard() {
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             {o.status === "PAID" && (
-                              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => toast.success(`Refund initiated for ${o.orderNumber}`)}>
+                              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => toast.error(`No refund — all sales are final (per policy)`, { description: `Order ${o.orderNumber} · digital product already delivered` })}>
                                 Refund
                               </Button>
                             )}

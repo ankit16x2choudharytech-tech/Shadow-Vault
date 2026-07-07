@@ -137,3 +137,27 @@ Work Log:
 
 Stage Summary:
 - All buttons now work reliably. Root causes were AnimatePresence blocking view transitions and a complex hydration pattern. Simplified to plain conditional rendering + standard skipHydration pattern.
+
+---
+Task ID: 14
+Agent: main
+Task: Add Privacy Policy, Terms & Conditions, No Refund policy; connect footer buttons; remove admin selector from sign-in
+
+Work Log:
+- Store: Added legal modal state (legalOpen, legalType, setLegal, setLegalOpen). Removed authRole (no longer needed — no role selector).
+- Created LegalModal component with 3 full documents:
+  • Privacy Policy — 7 sections: data collected, payment handling (Razorpay, no card storage), security, retention, cookies, DPDP Act 2023 rights, contact.
+  • Terms & Conditions — 10 sections including eligibility, licensing (single-user non-transferable), payments, NO REFUND clause, product updates, acceptable use (no cheating), limitation of liability, governing law (India).
+  • Refund Policy — Big "NO REFUND POLICY" banner in pink with ban icon, explains why no refunds (digital/instant delivery), faulty product handling (replacement/store credit only), duplicate charge reversal, chargeback abuse warning, pre-purchase checklist.
+- Footer: Connected ALL buttons. Marketplace links → set category filter + navigate to marketplace. Company links → Contact opens mailto, Affiliate shows toast, others show "coming soon" toast. Support links → Privacy/Terms/Refund open LegalModal, Help Center opens refund policy, Track Order → dashboard if logged in. Added Privacy/Terms/No Refund links in bottom bar.
+- AuthModal: Removed Customer/Admin role selector tabs entirely. Normal sign-in ALWAYS logs in as customer. Added subtle "Admin access" link at bottom that opens a separate admin sub-view requiring a secret access code (VAULT-ADMIN-2025). Wrong code shows error + toast. Only correct code grants admin role.
+- Dashboard sign-in prompt: Removed "Sign in as Admin" button. Now just a single "Sign In" button.
+- Navbar: Updated all setAuthOpen calls to remove role argument. Mobile menu: removed "Admin Login" button, kept single "Sign In".
+- FAQ: Updated refund answer to clearly state NO REFUND policy.
+- Admin orders table: Refund button now shows error toast "No refund — all sales are final" instead of success.
+- Verified with Agent Browser: Privacy/Terms/Refund modals open from footer; marketplace category filter works from footer; normal login = customer only (no admin leak); admin access via secret code works (wrong code rejected, correct code grants admin); VLM confirmed admin dashboard + refund modal render correctly. No console errors.
+
+Stage Summary:
+- Privacy Policy, Terms & Conditions, and No Refund policy added as modal documents accessible from footer.
+- All footer buttons now functional (category filters, legal modals, contact, dashboard navigation).
+- Admin access secured behind secret code — normal users cannot become admin and download for free. Admin code: VAULT-ADMIN-2025.

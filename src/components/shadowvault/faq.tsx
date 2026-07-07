@@ -27,8 +27,8 @@ const faqs = [
     a: "All Razorpay-supported methods: UPI (GPay, PhonePe, Paytm), credit & debit cards (Visa, Mastercard, RuPay), net banking across 50+ Indian banks, and popular wallets. Everything is 256-bit encrypted and PCI-DSS compliant.",
   },
   {
-    q: "What if a product doesn't work for me?",
-    a: "Open a support ticket from your dashboard within 7 days of purchase. Our team reviews each case and processes refunds for genuine issues. Refunded products are immediately locked and the amount reversed to your original payment method.",
+    q: "What is your refund policy?",
+    a: "ShadowVault operates a strict NO REFUND policy. Because all products are digital and delivered instantly upon payment, we cannot offer refunds, exchanges, or cancellations once a product has been unlocked and downloaded. Please review product details, screenshots, and compatibility carefully before purchasing. In rare cases of verified duplicate charges or demonstrably non-functional products (with proof), our support team may offer a replacement file or store credit at its sole discretion — this is not a refund.",
   },
   {
     q: "Can I use coupon codes with referral discounts?",

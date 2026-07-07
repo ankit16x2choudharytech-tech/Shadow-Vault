@@ -289,7 +289,7 @@ export function Navbar() {
               </DropdownMenu>
             ) : (
               <Button
-                onClick={() => setAuthOpen(true, "customer")}
+                onClick={() => setAuthOpen(true)}
                 size="sm"
                 className="hidden sm:inline-flex btn-magnetic bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0 hover:opacity-90 glow-violet"
               >
@@ -391,23 +391,12 @@ export function Navbar() {
                     <div className="space-y-2">
                       <Button
                         onClick={() => {
-                          setAuthOpen(true, "customer");
+                          setAuthOpen(true);
                           setMobileOpen(false);
                         }}
                         className="w-full btn-magnetic bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0"
                       >
-                        Sign In as Customer
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setAuthOpen(true, "admin");
-                          setMobileOpen(false);
-                        }}
-                        variant="outline"
-                        className="w-full glass border-[var(--neon-amber)]/40 text-[var(--neon-amber)] hover:bg-[var(--neon-amber)]/10"
-                      >
-                        <Crown className="h-4 w-4 mr-2" />
-                        Admin Login
+                        Sign In
                       </Button>
                     </div>
                   )}

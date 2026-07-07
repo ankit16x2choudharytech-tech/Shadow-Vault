@@ -18,6 +18,7 @@ import { Dashboard } from "@/components/shadowvault/dashboard";
 import { CartDrawer } from "@/components/shadowvault/cart-drawer";
 import { CheckoutModal } from "@/components/shadowvault/checkout-modal";
 import { AuthModal } from "@/components/shadowvault/auth-modal";
+import { LegalModal } from "@/components/shadowvault/legal-modal";
 
 export default function Home() {
   const { view } = useStore();
@@ -72,6 +73,7 @@ export default function Home() {
       <CartDrawer />
       <CheckoutModal />
       <AuthModal />
+      <LegalModal />
     </div>
   );
 }

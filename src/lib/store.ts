@@ -11,6 +11,8 @@ export type View =
 
 export type UserRole = "customer" | "admin" | null;
 
+export type LegalDoc = "privacy" | "terms" | "refund";
+
 interface AppState {
   // navigation
   view: View;
@@ -55,8 +57,13 @@ interface AppState {
 
   // auth modal
   authOpen: boolean;
-  authRole: "customer" | "admin" | null; // which role the auth modal is signing in as
-  setAuthOpen: (o: boolean, role?: "customer" | "admin") => void;
+  setAuthOpen: (o: boolean) => void;
+
+  // legal modal (privacy / terms / refund)
+  legalOpen: boolean;
+  legalType: LegalDoc | null;
+  setLegal: (type: LegalDoc) => void;
+  setLegalOpen: (o: boolean) => void;
 }
 
 export const useStore = create<AppState>()(
@@ -123,9 +130,12 @@ export const useStore = create<AppState>()(
       setCheckoutOpen: (o) => set({ checkoutOpen: o }),
 
       authOpen: false,
-      authRole: "customer",
-      setAuthOpen: (o, role) =>
-        set({ authOpen: o, authRole: role ?? get().authRole }),
+      setAuthOpen: (o) => set({ authOpen: o }),
+
+      legalOpen: false,
+      legalType: null,
+      setLegal: (type) => set({ legalOpen: true, legalType: type }),
+      setLegalOpen: (o) => set({ legalOpen: o }),
     }),
     {
       name: "shadowvault-store",
