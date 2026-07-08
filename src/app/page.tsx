@@ -21,7 +21,7 @@ import { AuthModal } from "@/components/shadowvault/auth-modal";
 import { LegalModal } from "@/components/shadowvault/legal-modal";
 
 export default function Home() {
-  const { view } = useStore();
+  const { view, rehydrate } = useStore();
 
   // Rehydrate persisted state from localStorage after mount. The server and
   // first client render both use default state (no localStorage), so there's
@@ -29,6 +29,27 @@ export default function Home() {
   // persisted state (login, cart, wishlist).
   useEffect(() => {
     void useStore.persist.rehydrate();
+    // Verify the persisted session against the server (httpOnly JWT cookie).
+    // If the cookie is valid, sync the store with the real user. If invalid
+    // (e.g. cookie expired), log out locally. This keeps refresh behavior
+    // consistent with the real auth backend.
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.ok) {
+          const json = await res.json();
+          const u = json.data ?? json;
+          if (u && u.role) {
+            rehydrate(u.role, u.name, u.email);
+          }
+        } else {
+          // cookie invalid/expired — clear local session
+          rehydrate(null, null, "demo@shadowvault.in");
+        }
+      } catch {
+        // network error — keep persisted state as-is
+      }
+    })();
   }, []);
 
   return (

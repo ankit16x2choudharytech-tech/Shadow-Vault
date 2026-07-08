@@ -1,23 +1,164 @@
-import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { hashPassword } from "@/lib/auth";
 
-/** PATCH /api/users/[id] — ban/unban, reset password, or update tier */
-export async function PATCH(
-  request: NextRequest,
+function publicUser(u: any) {
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    banned: u.banned,
+    tier: u.tier,
+    orders: u.orders,
+    spent: u.spent,
+    createdAt: u.createdAt?.toISOString?.() ?? u.createdAt,
+  };
+}
+
+/**
+ * GET /api/users/[id] — return a single user (password excluded).
+ */
+export async function GET(
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const body = await request.json();
-    const { banned, tier, password } = body;
+    const user = await db.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        banned: true,
+        tier: true,
+        orders: true,
+        spent: true,
+        createdAt: true,
+      },
+    });
+    if (!user) {
+      return Response.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+    return Response.json({
+      data: publicUser(user),
+    });
+  } catch (err) {
+    console.error("[GET /api/users/[id]] error:", err);
+    return Response.json(
+      { error: "Failed to fetch user" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PUT /api/users/[id] — ban/unban a user (admin).
+ * Body: { banned: boolean }.
+ * Returns the updated user { id, name, email, role, banned, tier, orders, spent }.
+ */
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json().catch(() => null);
+    if (!body) {
+      return Response.json(
+        { error: "Invalid request body" },
+        { status: 400 }
+      );
+    }
+    const { banned } = body as { banned?: boolean };
+
+    if (typeof banned !== "boolean") {
+      return Response.json(
+        { error: "Missing or invalid 'banned' field (must be boolean)" },
+        { status: 400 }
+      );
+    }
+
+    const existing = await db.user.findUnique({ where: { id } });
+    if (!existing) {
+      return Response.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    const updated = await db.user.update({
+      where: { id },
+      data: { banned },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        banned: true,
+        tier: true,
+        orders: true,
+        spent: true,
+        createdAt: true,
+      },
+    });
+
+    return Response.json({ data: publicUser(updated) });
+  } catch (err) {
+    console.error("[PUT /api/users/[id]] error:", err);
+    return Response.json(
+      { error: "Failed to update user" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/users/[id] — admin multi-field update (ban/unban, reset
+ * password, change tier). Kept for backwards compatibility with the existing
+ * admin dashboard which calls PATCH.
+ */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json().catch(() => null);
+    if (!body) {
+      return Response.json(
+        { error: "Invalid request body" },
+        { status: 400 }
+      );
+    }
+    const { banned, tier, password } = body as {
+      banned?: boolean;
+      tier?: string;
+      password?: string;
+    };
 
     const data: Record<string, unknown> = {};
     if (typeof banned === "boolean") data.banned = banned;
-    if (tier) data.tier = tier;
-    if (password) data.password = `hash_${Buffer.from(password).toString("base64")}`;
+    if (tier) data.tier = String(tier);
+    if (password) data.password = await hashPassword(String(password));
 
     if (Object.keys(data).length === 0) {
-      return Response.json({ error: "No fields to update" }, { status: 400 });
+      return Response.json(
+        { error: "No fields to update" },
+        { status: 400 }
+      );
+    }
+
+    const existing = await db.user.findUnique({ where: { id } });
+    if (!existing) {
+      return Response.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
     }
 
     const updated = await db.user.update({
@@ -35,24 +176,39 @@ export async function PATCH(
         createdAt: true,
       },
     });
-    return Response.json({ data: { ...updated, createdAt: updated.createdAt.toISOString() } });
+    return Response.json({ data: publicUser(updated) });
   } catch (err) {
     console.error("[PATCH /api/users/[id]] error:", err);
-    return Response.json({ error: "Failed to update user" }, { status: 500 });
+    return Response.json(
+      { error: "Failed to update user" },
+      { status: 500 }
+    );
   }
 }
 
-/** DELETE /api/users/[id] — delete a user */
+/**
+ * DELETE /api/users/[id] — delete a user account.
+ */
 export async function DELETE(
-  _request: NextRequest,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+    const existing = await db.user.findUnique({ where: { id } });
+    if (!existing) {
+      return Response.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
     await db.user.delete({ where: { id } });
-    return Response.json({ message: "User deleted" });
+    return Response.json({ ok: true });
   } catch (err) {
     console.error("[DELETE /api/users/[id]] error:", err);
-    return Response.json({ error: "Failed to delete user" }, { status: 500 });
+    return Response.json(
+      { error: "Failed to delete user" },
+      { status: 500 }
+    );
   }
 }

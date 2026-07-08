@@ -1,6 +1,7 @@
 // ShadowVault - Database seed script
 // Run with: bun prisma/seed.ts  (or: bunx prisma db seed)
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const db = new PrismaClient();
 
@@ -743,11 +744,13 @@ async function main() {
     { name: "Ananya Singh", email: "ananya@gmail.com", password: "pass1234", role: "customer", tier: "Standard", orders: 7, spent: 8990 },
   ];
   for (const u of seedUsers) {
+    // Use real bcrypt hash so login API (which calls bcrypt.compare) works.
+    const hashed = bcrypt.hashSync(u.password, 10);
     await db.user.create({
       data: {
         name: u.name,
         email: u.email,
-        password: `hash_${Buffer.from(u.password).toString("base64")}`,
+        password: hashed,
         role: u.role,
         tier: u.tier,
         orders: u.orders,

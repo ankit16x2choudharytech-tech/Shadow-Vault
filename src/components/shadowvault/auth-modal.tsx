@@ -80,8 +80,9 @@ export function AuthModal() {
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Registration failed");
-        login("customer", json.data.name, json.data.email);
-        toast.success(`Account created — welcome, ${json.data.name}!`);
+        const u = json.data ?? json.user;
+        login("customer", u.name, u.email);
+        toast.success(`Account created — welcome, ${u.name}!`);
       } else {
         // real login — validate against the User table
         const res = await fetch("/api/auth/login", {
@@ -95,8 +96,9 @@ export function AuthModal() {
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Login failed");
-        login(json.data.role as "customer" | "admin", json.data.name, json.data.email);
-        toast.success(`Welcome back, ${json.data.name}!`);
+        const u = json.data ?? json.user;
+        login(u.role as "customer" | "admin", u.name, u.email);
+        toast.success(`Welcome back, ${u.name}!`);
       }
       setLoading(false);
       setAuthOpen(false);
@@ -135,8 +137,9 @@ export function AuthModal() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Admin login failed");
-      login("admin", json.data.name, json.data.email);
-      toast.success(`Admin access granted, ${json.data.name}!`);
+      const u = json.data ?? json.user;
+      login("admin", u.name, u.email);
+      toast.success(`Admin access granted, ${u.name}!`);
       setLoading(false);
       setAuthOpen(false);
       setView("dashboard");

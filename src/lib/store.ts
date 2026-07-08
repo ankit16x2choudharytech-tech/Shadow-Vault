@@ -50,6 +50,7 @@ interface AppState {
   login: (role: "customer" | "admin", name: string, email: string) => void;
   logout: () => void;
   setCustomerEmail: (e: string) => void;
+  rehydrate: (role: UserRole, name: string | null, email: string) => void;
 
   // checkout modal
   checkoutOpen: boolean;
@@ -125,6 +126,8 @@ export const useStore = create<AppState>()(
       logout: () =>
         set({ userRole: null, userName: null }),
       setCustomerEmail: (e) => set({ customerEmail: e }),
+      rehydrate: (role, name, email) =>
+        set({ userRole: role, userName: name, customerEmail: email }),
 
       checkoutOpen: false,
       setCheckoutOpen: (o) => set({ checkoutOpen: o }),

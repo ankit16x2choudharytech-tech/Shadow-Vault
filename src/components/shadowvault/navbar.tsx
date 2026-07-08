@@ -275,7 +275,12 @@ export function Navbar() {
                   )}
                   <DropdownMenuSeparator className="bg-white/10" />
                   <DropdownMenuItem
-                    onClick={() => {
+                    onClick={async () => {
+                      try {
+                        await fetch("/api/auth/logout", { method: "POST" });
+                      } catch {
+                        /* ignore — clear local state anyway */
+                      }
                       logout();
                       toast.success("Signed out");
                       go("home");
@@ -374,7 +379,12 @@ export function Navbar() {
                         </div>
                       </div>
                       <Button
-                        onClick={() => {
+                        onClick={async () => {
+                          try {
+                            await fetch("/api/auth/logout", { method: "POST" });
+                          } catch {
+                            /* ignore */
+                          }
                           logout();
                           toast.success("Signed out");
                           go("home");

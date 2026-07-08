@@ -1,67 +1,57 @@
-import { NextRequest } from "next/server";
+import { razorpay } from "@/lib/razorpay";
 
 /**
  * POST /api/razorpay/create-order
- * Creates a Razorpay order on the server using the Razorpay REST API.
- * Requires RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET env vars.
- * If keys are missing, returns a demo order so the flow can continue
- * in test/demo mode.
+ * Body: { amount: number } — amount in whole rupees (integer).
+ *
+ * Creates a Razorpay order via the official Node SDK. Returns the order id,
+ * amount (in paise), currency, and the public key id the client needs to
+ * open the Razorpay checkout modal.
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const { amount, currency = "INR" } = await request.json();
-    if (!amount || amount <= 0) {
-      return Response.json({ error: "Invalid amount" }, { status: 400 });
-    }
-
-    const keyId = process.env.RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-
-    // No keys → demo mode
-    if (!keyId || !keySecret) {
-      return Response.json({
-        demo: true,
-        order: {
-          id: `order_demo_${Date.now()}`,
-          amount: amount * 100,
-          currency,
-          status: "created",
-        },
-        key_id: null,
-      });
-    }
-
-    // Real Razorpay order creation
-    const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-    const res = await fetch("https://api.razorpay.com/v1/orders", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${auth}`,
-      },
-      body: JSON.stringify({
-        amount: Math.round(amount * 100), // paise
-        currency,
-        receipt: `rcpt_${Date.now()}`,
-        payment_capture: 1,
-      }),
-    });
-
-    const order = await res.json();
-    if (!res.ok) {
+    const body = await request.json().catch(() => null);
+    if (!body) {
       return Response.json(
-        { error: order.error?.description || "Failed to create order" },
-        { status: 500 }
+        { error: "Invalid request body" },
+        { status: 400 }
       );
     }
 
-    return Response.json({
-      demo: false,
-      order,
-      key_id: keyId,
+    const { amount } = body as { amount?: number };
+
+    if (
+      amount == null ||
+      typeof amount !== "number" ||
+      !Number.isFinite(amount) ||
+      amount <= 0
+    ) {
+      return Response.json(
+        { error: "Invalid amount (must be a positive number of rupees)" },
+        { status: 400 }
+      );
+    }
+
+    const paise = Math.round(amount * 100);
+
+    const order = await razorpay.orders.create({
+      amount: paise,
+      currency: "INR",
+      receipt: `rcpt_${Date.now()}`,
     });
-  } catch (err) {
+
+    return Response.json({
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      keyId: process.env.RAZORPAY_KEY_ID,
+    });
+  } catch (err: any) {
     console.error("[POST /api/razorpay/create-order] error:", err);
-    return Response.json({ error: "Failed to create order" }, { status: 500 });
+    const message =
+      err?.error?.description ||
+      err?.message ||
+      "Failed to create Razorpay order";
+    return Response.json({ error: message }, { status: 500 });
   }
 }
