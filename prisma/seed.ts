@@ -729,6 +729,34 @@ async function main() {
   await db.coupon.deleteMany();
   await db.product.deleteMany();
   await db.category.deleteMany();
+  await db.user.deleteMany();
+
+  console.log("👥 Inserting users...");
+  const seedUsers = [
+    { name: "Demo Gamer", email: "demo@shadowvault.in", password: "test1234", role: "customer", tier: "Premium", orders: 4, spent: 11594 },
+    { name: "Vault Admin", email: "admin@shadowvault.in", password: "admin123", role: "admin", tier: "Premium", orders: 0, spent: 0 },
+    { name: "Arjun Verma", email: "arjun@gmail.com", password: "pass1234", role: "customer", tier: "Premium", orders: 14, spent: 18999 },
+    { name: "Riya Kapoor", email: "riya@gmail.com", password: "pass1234", role: "customer", tier: "Premium", orders: 9, spent: 12450 },
+    { name: "Karthik Reddy", email: "karthik@gmail.com", password: "pass1234", role: "customer", tier: "Standard", orders: 4, spent: 3200 },
+    { name: "Zaid Khan", email: "zaid@gmail.com", password: "pass1234", role: "customer", tier: "Premium", orders: 22, spent: 34700 },
+    { name: "Suspicious User", email: "spam@temp.com", password: "pass1234", role: "customer", tier: "Standard", orders: 1, spent: 499, banned: true },
+    { name: "Ananya Singh", email: "ananya@gmail.com", password: "pass1234", role: "customer", tier: "Standard", orders: 7, spent: 8990 },
+  ];
+  for (const u of seedUsers) {
+    await db.user.create({
+      data: {
+        name: u.name,
+        email: u.email,
+        password: `hash_${Buffer.from(u.password).toString("base64")}`,
+        role: u.role,
+        tier: u.tier,
+        orders: u.orders,
+        spent: u.spent,
+        banned: u.banned ?? false,
+      },
+    });
+  }
+  console.log(`   Seeded ${seedUsers.length} users`);
 
   console.log("📂 Inserting categories...");
   for (const c of CATEGORIES) {

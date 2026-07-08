@@ -65,36 +65,127 @@ export function CheckoutModal() {
     setStage("processing");
     setCustomerEmail(email.trim());
 
-    // Simulate Razorpay order creation + payment + verification
-    await new Promise((r) => setTimeout(r, 900)); // create order
-
     try {
-      const res = await fetch("/api/orders", {
+      // Step 1: Create a Razorpay order on the server
+      const createRes = await fetch("/api/razorpay/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerName: name.trim(),
-          customerEmail: email.trim(),
-          items: cart.map((c) => ({ productId: c.productId })),
-          couponCode: coupon?.code ?? null,
-          paymentId: `pay_${Math.random().toString(36).slice(2, 14)}`,
-        }),
+        body: JSON.stringify({ amount: total, currency: "INR" }),
       });
-      if (!res.ok) throw new Error("Order failed");
-      const json = await res.json();
-      const order = json.data ?? json;
+      const createJson = await createRes.json();
+      if (!createRes.ok) throw new Error(createJson.error || "Order creation failed");
 
-      // Simulate signature verification delay
-      await new Promise((r) => setTimeout(r, 1100));
+      const { order, key_id, demo } = createJson;
 
-      setCreatedOrder(order);
-      setStage("success");
-      invalidateCache(`/api/orders?email=${encodeURIComponent(email.trim())}`);
-      invalidateCache("/api/orders");
-      toast.success("Payment successful! Products unlocked.");
-    } catch {
+      // Step 2: If demo mode (no Razorpay keys), simulate payment
+      if (demo || !key_id) {
+        await new Promise((r) => setTimeout(r, 1200));
+        // verify (auto-passes in demo mode)
+        const verifyRes = await fetch("/api/razorpay/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            razorpay_order_id: order.id,
+            razorpay_payment_id: `pay_demo_${Date.now()}`,
+            razorpay_signature: "demo",
+          }),
+        });
+        const verifyJson = await verifyRes.json();
+        if (!verifyJson.verified) throw new Error("Verification failed");
+
+        // create the order in DB
+        const orderRes = await fetch("/api/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerName: name.trim(),
+            customerEmail: email.trim(),
+            items: cart.map((c) => ({ productId: c.productId })),
+            couponCode: coupon?.code ?? null,
+            paymentId: verifyJson.payment_id,
+          }),
+        });
+        if (!orderRes.ok) throw new Error("Order failed");
+        const orderData = (await orderRes.json()).data;
+        setCreatedOrder(orderData);
+        setStage("success");
+        invalidateCache(`/api/orders?email=${encodeURIComponent(email.trim())}`);
+        invalidateCache("/api/orders");
+        toast.success("Payment successful! Products unlocked.");
+        return;
+      }
+
+      // Step 3: Real Razorpay — load checkout.js and open payment modal
+      // Load the Razorpay checkout script
+      await new Promise<void>((resolve, reject) => {
+        if ((window as any).Razorpay) return resolve();
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("Failed to load Razorpay"));
+        document.body.appendChild(script);
+      });
+
+      const rzp = new (window as any).Razorpay({
+        key: key_id,
+        amount: order.amount,
+        currency: order.currency,
+        name: "ShadowVault",
+        description: `Purchase · ${cart.length} item(s)`,
+        order_id: order.id,
+        prefill: { name: name.trim(), email: email.trim(), contact: phone.trim() },
+        theme: { color: "#a855f7" },
+        handler: async (response: any) => {
+          // Step 4: Verify the payment signature on the server
+          const verifyRes = await fetch("/api/razorpay/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            }),
+          });
+          const verifyJson = await verifyRes.json();
+          if (!verifyJson.verified) {
+            setStage("failed");
+            toast.error("Payment verification failed");
+            return;
+          }
+
+          // Step 5: Create the order in DB
+          const orderRes = await fetch("/api/orders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              customerName: name.trim(),
+              customerEmail: email.trim(),
+              items: cart.map((c) => ({ productId: c.productId })),
+              couponCode: coupon?.code ?? null,
+              paymentId: verifyJson.payment_id,
+            }),
+          });
+          if (!orderRes.ok) throw new Error("Order failed");
+          const orderData = (await orderRes.json()).data;
+          setCreatedOrder(orderData);
+          setStage("success");
+          invalidateCache(`/api/orders?email=${encodeURIComponent(email.trim())}`);
+          invalidateCache("/api/orders");
+          toast.success("Payment successful! Products unlocked.");
+        },
+        modal: {
+          ondismiss: () => {
+            setStage("form");
+            toast.error("Payment cancelled");
+          },
+        },
+      });
+      rzp.open();
+    } catch (err) {
       setStage("failed");
-      toast.error("Payment failed. Please try again.");
+      toast.error("Payment failed", {
+        description: (err as Error).message,
+      });
     }
   };
 

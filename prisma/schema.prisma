@@ -8,6 +8,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String   // bcrypt hash
+  role      String   @default("customer") // customer | admin
+  banned    Boolean  @default(false)
+  tier      String   @default("Standard") // Standard | Premium
+  orders    Int      @default(0)
+  spent     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
 model Category {
   id          String    @id @default(cuid())
   name        String    @unique

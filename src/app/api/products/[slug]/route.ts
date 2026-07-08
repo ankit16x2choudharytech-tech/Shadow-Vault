@@ -79,3 +79,79 @@ export async function GET(
     );
   }
 }
+
+/** PATCH /api/products/[slug] — edit a product (param can be id or slug) */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  try {
+    const { slug } = await params;
+    const body = await request.json();
+
+    // look up by id first, then by slug
+    let product = await db.product.findUnique({ where: { id: slug } });
+    if (!product) {
+      product = await db.product.findUnique({ where: { slug } });
+    }
+    if (!product) {
+      return Response.json({ error: "Product not found" }, { status: 404 });
+    }
+
+    const {
+      name, tagline, description, price, originalPrice, category, type,
+      compatibility, fileSize, version, thumbnail, badge, status, features,
+      telegramFileId,
+    } = body;
+
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (tagline !== undefined) data.tagline = tagline;
+    if (description !== undefined) data.description = description;
+    if (price !== undefined) data.price = Number(price);
+    if (originalPrice !== undefined) data.originalPrice = originalPrice ? Number(originalPrice) : null;
+    if (category !== undefined) data.category = category;
+    if (type !== undefined) data.type = type;
+    if (compatibility !== undefined) data.compatibility = compatibility;
+    if (fileSize !== undefined) data.fileSize = fileSize;
+    if (version !== undefined) data.version = version;
+    if (thumbnail !== undefined) data.thumbnail = thumbnail;
+    if (badge !== undefined) data.badge = badge ?? null;
+    if (status !== undefined) data.status = status;
+    if (telegramFileId !== undefined) data.telegramFileId = telegramFileId;
+    if (features !== undefined) data.features = JSON.stringify(features);
+
+    if (Object.keys(data).length === 0) {
+      return Response.json({ error: "No fields to update" }, { status: 400 });
+    }
+
+    const updated = await db.product.update({ where: { id: product.id }, data });
+    return Response.json({ data: transformProduct(updated) });
+  } catch (err) {
+    console.error("[PATCH /api/products/[slug]] error:", err);
+    return Response.json({ error: "Failed to update product" }, { status: 500 });
+  }
+}
+
+/** DELETE /api/products/[slug] — delete a product (param can be id or slug) */
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  try {
+    const { slug } = await params;
+    // look up by id first, then by slug
+    let product = await db.product.findUnique({ where: { id: slug } });
+    if (!product) {
+      product = await db.product.findUnique({ where: { slug } });
+    }
+    if (!product) {
+      return Response.json({ error: "Product not found" }, { status: 404 });
+    }
+    await db.product.delete({ where: { id: product.id } });
+    return Response.json({ message: "Product deleted" });
+  } catch (err) {
+    console.error("[DELETE /api/products/[slug]] error:", err);
+    return Response.json({ error: "Failed to delete product" }, { status: 500 });
+  }
+}

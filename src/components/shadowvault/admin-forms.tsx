@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,11 +17,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Package, Ticket, X, Upload, FileCheck2, FileUp } from "lucide-react";
+import { Loader2, Package, Ticket, X, Upload, FileCheck2, FileUp, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useApi, invalidateCache } from "@/lib/use-api";
-import type { Category, Coupon } from "@/lib/types";
+import type { Category, Coupon, Product } from "@/lib/types";
 
 /* ====================== ADD PRODUCT MODAL ====================== */
 
@@ -629,5 +629,276 @@ function Field({
       </Label>
       {children}
     </div>
+  );
+}
+
+/* ====================== EDIT PRODUCT MODAL ====================== */
+
+export function EditProductModal({
+  product,
+  onOpenChange,
+  onSaved,
+}: {
+  product: Product | null;
+  onOpenChange: (o: boolean) => void;
+  onSaved?: () => void;
+}) {
+  const { data: categories } = useApi<Category[]>("/api/categories");
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    tagline: "",
+    description: "",
+    price: "",
+    originalPrice: "",
+    category: "",
+    type: "Panel",
+    compatibility: "",
+    fileSize: "",
+    version: "",
+    thumbnail: "",
+    badge: "",
+  });
+
+  // populate form when product changes
+  useEffect(() => {
+    if (product) {
+      setForm({
+        name: product.name,
+        tagline: product.tagline,
+        description: product.description,
+        price: String(product.price),
+        originalPrice: product.originalPrice ? String(product.originalPrice) : "",
+        category: product.category,
+        type: product.type,
+        compatibility: product.compatibility,
+        fileSize: product.fileSize,
+        version: product.version,
+        thumbnail: product.thumbnail,
+        badge: product.badge ?? "",
+      });
+    }
+  }, [product]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!product) return;
+    if (!form.name || !form.price) {
+      toast.error("Name and price are required");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/products/${product.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          tagline: form.tagline,
+          description: form.description,
+          price: Number(form.price),
+          originalPrice: form.originalPrice ? Number(form.originalPrice) : null,
+          category: form.category || undefined,
+          type: form.type,
+          compatibility: form.compatibility,
+          fileSize: form.fileSize,
+          version: form.version,
+          thumbnail: form.thumbnail,
+          badge: form.badge || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed");
+      toast.success("Product updated!", {
+        description: `${form.name} has been saved.`,
+      });
+      invalidateCache("/api/products");
+      onSaved?.();
+      onOpenChange(false);
+    } catch (err) {
+      toast.error("Update failed", {
+        description: (err as Error).message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!product} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl w-[95vw] p-0 gap-0 glass-strong border-white/10 max-h-[92vh] overflow-hidden">
+        <DialogTitle className="sr-only">Edit product</DialogTitle>
+        {product && (
+          <div className="overflow-y-auto max-h-[92vh] no-scrollbar">
+            <div className="relative bg-gradient-to-br from-[var(--neon-amber)]/30 to-[var(--neon-pink)]/20 p-5 flex items-center gap-3 sticky top-0 z-10 glass-strong border-b border-white/10">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--neon-amber)]/20">
+                <Pencil className="h-5 w-5 text-[var(--neon-amber)]" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-lg font-bold">Edit Product</h2>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {product.name}
+                </p>
+              </div>
+              <button
+                onClick={() => onOpenChange(false)}
+                className="grid h-8 w-8 place-items-center rounded-lg glass hover:bg-white/10"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={submit} className="p-6 space-y-4">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Product Name *">
+                  <Input
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className="bg-white/5 border-white/10"
+                    required
+                  />
+                </Field>
+                <Field label="Version">
+                  <Input
+                    value={form.version}
+                    onChange={(e) => setForm({ ...form, version: e.target.value })}
+                    className="bg-white/5 border-white/10"
+                  />
+                </Field>
+              </div>
+
+              <Field label="Tagline">
+                <Input
+                  value={form.tagline}
+                  onChange={(e) => setForm({ ...form, tagline: e.target.value })}
+                  className="bg-white/5 border-white/10"
+                />
+              </Field>
+
+              <Field label="Description">
+                <Textarea
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  className="bg-white/5 border-white/10 resize-none"
+                  rows={3}
+                />
+              </Field>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Price (₹) *">
+                  <Input
+                    type="number"
+                    value={form.price}
+                    onChange={(e) => setForm({ ...form, price: e.target.value })}
+                    className="bg-white/5 border-white/10"
+                    required
+                  />
+                </Field>
+                <Field label="Original Price (₹)">
+                  <Input
+                    type="number"
+                    value={form.originalPrice}
+                    onChange={(e) => setForm({ ...form, originalPrice: e.target.value })}
+                    className="bg-white/5 border-white/10"
+                  />
+                </Field>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Category">
+                  <Select
+                    value={form.category}
+                    onValueChange={(v) => setForm({ ...form, category: v })}
+                  >
+                    <SelectTrigger className="bg-white/5 border-white/10">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent className="glass-strong border-white/10">
+                      {categories?.map((c) => (
+                        <SelectItem key={c.id} value={c.slug}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Type">
+                  <Select
+                    value={form.type}
+                    onValueChange={(v) => setForm({ ...form, type: v })}
+                  >
+                    <SelectTrigger className="bg-white/5 border-white/10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="glass-strong border-white/10">
+                      <SelectItem value="Panel">Panel</SelectItem>
+                      <SelectItem value="Mod Menu">Mod Menu</SelectItem>
+                      <SelectItem value="Emulator Tool">Emulator Tool</SelectItem>
+                      <SelectItem value="Config">Config</SelectItem>
+                      <SelectItem value="Premium File">Premium File</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Compatibility">
+                  <Input
+                    value={form.compatibility}
+                    onChange={(e) => setForm({ ...form, compatibility: e.target.value })}
+                    className="bg-white/5 border-white/10"
+                  />
+                </Field>
+                <Field label="Badge">
+                  <Select
+                    value={form.badge || "none"}
+                    onValueChange={(v) => setForm({ ...form, badge: v === "none" ? "" : v })}
+                  >
+                    <SelectTrigger className="bg-white/5 border-white/10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="glass-strong border-white/10">
+                      <SelectItem value="none">No badge</SelectItem>
+                      <SelectItem value="HOT">HOT</SelectItem>
+                      <SelectItem value="NEW">NEW</SelectItem>
+                      <SelectItem value="TRENDING">TRENDING</SelectItem>
+                      <SelectItem value="DEAL">DEAL</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+
+              <Field label="Thumbnail URL">
+                <Input
+                  value={form.thumbnail}
+                  onChange={(e) => setForm({ ...form, thumbnail: e.target.value })}
+                  className="bg-white/5 border-white/10"
+                />
+              </Field>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 btn-magnetic h-11 bg-gradient-to-r from-[var(--neon-amber)] to-[var(--neon-pink)] text-white border-0 glow-amber"
+                >
+                  {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  {loading ? "Saving…" : "Save Changes"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  className="glass border-white/15"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -60,28 +60,64 @@ export function AuthModal() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.email.trim() || !form.password) {
+      toast.error("Please enter email and password");
+      return;
+    }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 900));
 
-    const name = form.name.trim() || "Demo Gamer";
-    const email = form.email.trim() || "demo@shadowvault.in";
-
-    // Normal sign-in is ALWAYS customer. Admin access is separate.
-    login("customer", name, email);
-    toast.success(`Welcome back, ${name}!`);
-    setLoading(false);
-    setAuthOpen(false);
-    setView("dashboard");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    setDone(true);
-    setTimeout(() => setDone(false), 700);
+    try {
+      if (mode === "register") {
+        // register a new customer account
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: form.name.trim() || "New Gamer",
+            email: form.email.trim(),
+            password: form.password,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Registration failed");
+        login("customer", json.data.name, json.data.email);
+        toast.success(`Account created — welcome, ${json.data.name}!`);
+      } else {
+        // real login — validate against the User table
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: form.email.trim(),
+            password: form.password,
+            role: "customer",
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Login failed");
+        login(json.data.role as "customer" | "admin", json.data.name, json.data.email);
+        toast.success(`Welcome back, ${json.data.name}!`);
+      }
+      setLoading(false);
+      setAuthOpen(false);
+      setView("dashboard");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setDone(true);
+      setTimeout(() => setDone(false), 700);
+    } catch (err) {
+      setLoading(false);
+      toast.error("Login failed", {
+        description: (err as Error).message,
+      });
+    }
   };
 
   const submitAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 900));
 
+    // Admin login now validates against the User table (role=admin) using
+    // the email + password. The access code is an additional gate.
     if (adminCode.trim().toUpperCase() !== ADMIN_ACCESS_CODE) {
       setLoading(false);
       setAdminError(true);
@@ -89,16 +125,29 @@ export function AuthModal() {
       return;
     }
 
-    const name = form.name.trim() || "Vault Admin";
-    const email = form.email.trim() || "admin@shadowvault.in";
-
-    login("admin", name, email);
-    toast.success(`Admin access granted, ${name}!`);
-    setLoading(false);
-    setAuthOpen(false);
-    setView("dashboard");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    reset();
+    try {
+      const email = form.email.trim() || "admin@shadowvault.in";
+      const password = form.password || "admin123";
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, role: "admin" }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Admin login failed");
+      login("admin", json.data.name, json.data.email);
+      toast.success(`Admin access granted, ${json.data.name}!`);
+      setLoading(false);
+      setAuthOpen(false);
+      setView("dashboard");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      reset();
+    } catch (err) {
+      setLoading(false);
+      toast.error("Admin login failed", {
+        description: (err as Error).message,
+      });
+    }
   };
 
   return (

@@ -25,9 +25,12 @@ import {
   RefreshCw,
   Crown,
   Zap,
+  Trash2,
+  Pencil,
+  ShieldBan,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { useApi } from "@/lib/use-api";
+import { useApi, invalidateCache } from "@/lib/use-api";
 import type { Order, Product } from "@/lib/types";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +62,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "./error-boundary";
-import { AddProductModal, AddCouponModal } from "./admin-forms";
+import { AddProductModal, AddCouponModal, EditProductModal } from "./admin-forms";
 import type { Coupon as CouponType } from "@/lib/types";
 
 const statusStyles: Record<string, string> = {
@@ -601,13 +604,17 @@ function OrderRow({ order, expanded }: { order: Order; expanded?: boolean }) {
 
 function AdminDashboard() {
   const [productRefreshKey, setProductRefreshKey] = useState(0);
-  const { data: orders, loading: oloading } = useApi<Order[]>("/api/orders");
+  const [orderRefreshKey, setOrderRefreshKey] = useState(0);
+  const { data: orders, loading: oloading } = useApi<Order[]>(
+    `/api/orders?_=${orderRefreshKey}`
+  );
   const { data: products } = useApi<Product[]>(
     `/api/products?limit=12&_=${productRefreshKey}`
   );
 
   const [tab, setTab] = useState("overview");
   const [productModalOpen, setProductModalOpen] = useState(false);
+  const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [couponModalOpen, setCouponModalOpen] = useState(false);
   const [extraCoupons, setExtraCoupons] = useState<CouponType[]>([]);
   const tabsList = [
@@ -883,9 +890,36 @@ function AdminDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => toast.info(`Manage ${p.name}`)}>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => setEditProduct(p)}
+                              title="Edit product"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-muted-foreground hover:text-[var(--neon-pink)]"
+                              onClick={async () => {
+                                if (!confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
+                                try {
+                                  const res = await fetch(`/api/products/${p.id}`, { method: "DELETE" });
+                                  if (!res.ok) throw new Error("Failed");
+                                  toast.success(`Deleted ${p.name}`);
+                                  setProductRefreshKey((k) => k + 1);
+                                } catch {
+                                  toast.error("Delete failed");
+                                }
+                              }}
+                              title="Delete product"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -942,8 +976,24 @@ function AdminDashboard() {
                                 Refund
                               </Button>
                             )}
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => toast.info(`View ${o.orderNumber}`)}>
-                              <MoreHorizontal className="h-4 w-4" />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-muted-foreground hover:text-[var(--neon-pink)]"
+                              onClick={async () => {
+                                if (!confirm(`Delete order ${o.orderNumber}? This cannot be undone.`)) return;
+                                try {
+                                  const res = await fetch(`/api/orders/${o.id}`, { method: "DELETE" });
+                                  if (!res.ok) throw new Error("Failed");
+                                  toast.success(`Order ${o.orderNumber} deleted`);
+                                  setOrderRefreshKey((k) => k + 1);
+                                } catch {
+                                  toast.error("Delete failed");
+                                }
+                              }}
+                              title="Delete order"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </TableCell>
@@ -965,69 +1015,8 @@ function AdminDashboard() {
         )}
 
         {tab === "users" && (
-          <div
-            key="users"
-          >
-            <Card className="glass p-5">
-              <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-                <h3 className="font-semibold">User Management</h3>
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Search users…" className="pl-9 bg-white/5 border-white/10 h-9" />
-                </div>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-white/10 hover:bg-transparent">
-                    <TableHead className="text-muted-foreground">User</TableHead>
-                    <TableHead className="text-muted-foreground">Tier</TableHead>
-                    <TableHead className="text-muted-foreground">Orders</TableHead>
-                    <TableHead className="text-muted-foreground">Spent</TableHead>
-                    <TableHead className="text-muted-foreground">Status</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sampleUsers.map((u) => (
-                    <TableRow key={u.id} className="border-white/5">
-                      <TableCell>
-                        <div className="flex items-center gap-2.5">
-                          <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[var(--neon-violet)] to-[var(--neon-pink)] text-white text-xs font-bold">
-                            {u.name.split(" ").map((n) => n[0]).join("")}
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium">{u.name}</div>
-                            <div className="text-[11px] text-muted-foreground">{u.email}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={cn("text-[10px]", u.tier === "Premium" ? "border-[var(--neon-amber)]/40 text-[var(--neon-amber)]" : "")}>
-                          {u.tier}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">{u.orders}</TableCell>
-                      <TableCell className="text-sm font-medium">₹{u.spent.toLocaleString("en-IN")}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={cn("text-[10px]", u.banned ? "border-[var(--neon-pink)]/40 text-[var(--neon-pink)]" : "border-[var(--neon-emerald)]/40 text-[var(--neon-emerald)]")}>
-                          {u.banned ? "BANNED" : "ACTIVE"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => toast.info(`Reset password for ${u.name}`)} title="Reset password">
-                            <KeyRound className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => toast.success(u.banned ? `Unbanned ${u.name}` : `Banned ${u.name}`)} title="Ban/Unban">
-                            <Ban className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
+          <div key="users">
+            <UserManagement />
           </div>
         )}
       </div>
@@ -1038,23 +1027,230 @@ function AdminDashboard() {
         onOpenChange={setProductModalOpen}
         onCreated={() => setProductRefreshKey((k) => k + 1)}
       />
+      {/* Edit Product modal */}
+      <EditProductModal
+        product={editProduct}
+        onOpenChange={(o) => !o && setEditProduct(null)}
+        onSaved={() => setProductRefreshKey((k) => k + 1)}
+      />
     </div>
   );
 }
 
-const sampleUsers = [
-  { id: "1", name: "Arjun Verma", email: "arjun@gmail.com", tier: "Premium", orders: 14, spent: 18999, banned: false },
-  { id: "2", name: "Riya Kapoor", email: "riya@gmail.com", tier: "Premium", orders: 9, spent: 12450, banned: false },
-  { id: "3", name: "Karthik Reddy", email: "karthik@gmail.com", tier: "Standard", orders: 4, spent: 3200, banned: false },
-  { id: "4", name: "Zaid Khan", email: "zaid@gmail.com", tier: "Premium", orders: 22, spent: 34700, banned: false },
-  { id: "5", name: "Suspicious User", email: "spam@temp.com", tier: "Standard", orders: 1, spent: 499, banned: true },
-  { id: "6", name: "Ananya Singh", email: "ananya@gmail.com", tier: "Standard", orders: 7, spent: 8990, banned: false },
-];
+/* ============================ USER MANAGEMENT ============================ */
+
+interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  banned: boolean;
+  tier: string;
+  orders: number;
+  spent: number;
+  createdAt: string;
+}
+
+function UserManagement() {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [search, setSearch] = useState("");
+  const { data: users, loading } = useApi<AdminUser[]>(
+    `/api/users?_=${refreshKey}`
+  );
+
+  const filtered = (users ?? []).filter(
+    (u) =>
+      u.name.toLowerCase().includes(search.toLowerCase()) ||
+      u.email.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const toggleBan = async (u: AdminUser) => {
+    try {
+      const res = await fetch(`/api/users/${u.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ banned: !u.banned }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast.success(u.banned ? `Unbanned ${u.name}` : `Banned ${u.name}`);
+      invalidateCache(`/api/users?_=${refreshKey}`);
+      setRefreshKey((k) => k + 1);
+    } catch {
+      toast.error("Action failed");
+    }
+  };
+
+  const resetPassword = async (u: AdminUser) => {
+    try {
+      const res = await fetch(`/api/users/${u.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: "reset1234" }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast.success(`Password reset for ${u.name}`, {
+        description: "Temporary password: reset1234",
+      });
+    } catch {
+      toast.error("Reset failed");
+    }
+  };
+
+  const deleteUser = async (u: AdminUser) => {
+    if (!confirm(`Delete user "${u.name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/users/${u.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed");
+      toast.success(`Deleted ${u.name}`);
+      invalidateCache(`/api/users?_=${refreshKey}`);
+      setRefreshKey((k) => k + 1);
+    } catch {
+      toast.error("Delete failed");
+    }
+  };
+
+  return (
+    <Card className="glass p-5">
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+        <h3 className="font-semibold">
+          User Management
+          <span className="ml-2 text-xs font-normal text-muted-foreground">
+            {(users ?? []).length} total
+          </span>
+        </h3>
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search users…"
+            className="pl-9 bg-white/5 border-white/10 h-9"
+          />
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="border-white/10 hover:bg-transparent">
+              <TableHead className="text-muted-foreground">User</TableHead>
+              <TableHead className="text-muted-foreground">Tier</TableHead>
+              <TableHead className="text-muted-foreground">Orders</TableHead>
+              <TableHead className="text-muted-foreground">Spent</TableHead>
+              <TableHead className="text-muted-foreground">Status</TableHead>
+              <TableHead className="text-muted-foreground text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  Loading users…
+                </TableCell>
+              </TableRow>
+            ) : filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  No users found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filtered.map((u) => (
+                <TableRow key={u.id} className="border-white/5">
+                  <TableCell>
+                    <div className="flex items-center gap-2.5">
+                      <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[var(--neon-violet)] to-[var(--neon-pink)] text-white text-xs font-bold">
+                        {u.name.split(" ").map((n) => n[0]).join("")}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium flex items-center gap-1.5">
+                          {u.name}
+                          {u.role === "admin" && (
+                            <Badge variant="outline" className="text-[9px] py-0 h-4 border-[var(--neon-amber)]/40 text-[var(--neon-amber)]">
+                              <Crown className="h-2.5 w-2.5 mr-0.5" />
+                              ADMIN
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">{u.email}</div>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={cn("text-[10px]", u.tier === "Premium" ? "border-[var(--neon-amber)]/40 text-[var(--neon-amber)]" : "")}>
+                      {u.tier}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm">{u.orders}</TableCell>
+                  <TableCell className="text-sm font-medium">₹{u.spent.toLocaleString("en-IN")}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={cn("text-[10px]", u.banned ? "border-[var(--neon-pink)]/40 text-[var(--neon-pink)]" : "border-[var(--neon-emerald)]/40 text-[var(--neon-emerald)]")}>
+                      {u.banned ? "BANNED" : "ACTIVE"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => resetPassword(u)}
+                        title="Reset password"
+                      >
+                        <KeyRound className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className={cn("h-7 w-7", u.banned ? "text-[var(--neon-emerald)]" : "text-[var(--neon-pink)]")}
+                        onClick={() => toggleBan(u)}
+                        title={u.banned ? "Unban" : "Ban"}
+                      >
+                        {u.banned ? <ShieldCheck className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
+                      </Button>
+                      {u.role !== "admin" && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-muted-foreground hover:text-[var(--neon-pink)]"
+                          onClick={() => deleteUser(u)}
+                          title="Delete user"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </Card>
+  );
+}
 
 function CouponManagement() {
-  const { data: dbCoupons } = useApi<CouponType[]>("/api/coupons");
+  const [couponRefreshKey, setCouponRefreshKey] = useState(0);
+  const { data: dbCoupons } = useApi<CouponType[]>(
+    `/api/coupons?_=${couponRefreshKey}`
+  );
   const [modalOpen, setModalOpen] = useState(false);
   const [newCoupons, setNewCoupons] = useState<CouponType[]>([]);
+
+  const deleteCoupon = async (c: CouponType) => {
+    if (!confirm(`Delete coupon "${c.code}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/coupons/${c.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed");
+      toast.success(`Coupon ${c.code} deleted`);
+      invalidateCache(`/api/coupons?_=${couponRefreshKey}`);
+      setNewCoupons((prev) => prev.filter((nc) => nc.id !== c.id));
+      setCouponRefreshKey((k) => k + 1);
+    } catch {
+      toast.error("Delete failed");
+    }
+  };
 
   // merge DB coupons with newly created ones (new ones shown first)
   const allCoupons = [...newCoupons, ...(dbCoupons ?? [])];
@@ -1122,13 +1318,24 @@ function CouponManagement() {
                   </div>
                   <Progress value={pct} className="h-1.5" />
                 </div>
-                <div className="text-[11px] text-muted-foreground mt-2">
-                  Expires{" "}
-                  {new Date(c.expiry).toLocaleDateString("en-IN", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
+                <div className="flex items-center justify-between mt-2">
+                  <div className="text-[11px] text-muted-foreground">
+                    Expires{" "}
+                    {new Date(c.expiry).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => deleteCoupon(c)}
+                    className="grid h-6 w-6 place-items-center rounded-lg glass hover:bg-[var(--neon-pink)]/20 text-muted-foreground hover:text-[var(--neon-pink)] transition-colors"
+                    title="Delete coupon"
+                    aria-label="Delete coupon"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
                 </div>
               </div>
             );
