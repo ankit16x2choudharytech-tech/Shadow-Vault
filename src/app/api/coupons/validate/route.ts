@@ -1,22 +1,23 @@
-import { db } from "@/lib/db";
-import type { Coupon, CouponValidationResult } from "@/lib/types";
+import { db } from "@/lib/firebase";
+import {
+  transformCoupon,
+  toISO,
+} from "@/lib/firestore-helpers";
+import type { CouponValidationResult } from "@/lib/types";
 
-function transformCoupon(raw: any): Coupon {
-  return {
-    id: raw.id,
-    code: raw.code,
-    type: raw.type,
-    value: raw.value,
-    minAmount: raw.minAmount,
-    maxDiscount: raw.maxDiscount ?? null,
-    usageLimit: raw.usageLimit,
-    usedCount: raw.usedCount,
-    expiry: raw.expiry?.toISOString?.() ?? raw.expiry,
-    active: raw.active,
-    createdAt: raw.createdAt?.toISOString?.() ?? raw.createdAt,
-  };
-}
-
+/**
+ * POST /api/coupons/validate
+ * Body: { code, subtotal }
+ *
+ * Query: `db.collection("coupons").where("code","==",code).limit(1).get()`.
+ * Validates: active, not expired (`expiry >= now`), `usedCount < usageLimit`,
+ * `subtotal >= minAmount`. Computes discount:
+ *   PERCENT: min(subtotal * value / 100, maxDiscount)
+ *   FLAT:    min(value, subtotal)
+ *
+ * Returns `{ data: { valid, discount, coupon } }` on success, or
+ * `{ data: { valid: false, message } }` on any validation failure.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -37,9 +38,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const raw = await db.coupon.findUnique({ where: { code: String(code) } });
+    const snap = await db
+      .collection("coupons")
+      .where("code", "==", String(code))
+      .limit(1)
+      .get();
 
-    if (!raw) {
+    if (snap.empty) {
       const result: CouponValidationResult = {
         valid: false,
         message: "Invalid coupon code",
@@ -47,8 +52,12 @@ export async function POST(request: Request) {
       return Response.json({ data: result });
     }
 
+    const cdoc = snap.docs[0];
+    const c = (cdoc.data() ?? {}) as Record<string, any>;
+    const coupon = transformCoupon(cdoc);
+
     // Validation rules
-    if (!raw.active) {
+    if (!c.active) {
       const result: CouponValidationResult = {
         valid: false,
         message: "This coupon is no longer active",
@@ -56,7 +65,8 @@ export async function POST(request: Request) {
       return Response.json({ data: result });
     }
 
-    if (raw.expiry && new Date(raw.expiry) < new Date()) {
+    const expiryIso = toISO(c.expiry);
+    if (expiryIso && new Date(expiryIso) < new Date()) {
       const result: CouponValidationResult = {
         valid: false,
         message: "This coupon has expired",
@@ -64,7 +74,9 @@ export async function POST(request: Request) {
       return Response.json({ data: result });
     }
 
-    if (raw.usedCount >= raw.usageLimit) {
+    const usedCount = typeof c.usedCount === "number" ? c.usedCount : 0;
+    const usageLimit = typeof c.usageLimit === "number" ? c.usageLimit : 0;
+    if (usedCount >= usageLimit) {
       const result: CouponValidationResult = {
         valid: false,
         message: "This coupon has reached its usage limit",
@@ -72,24 +84,26 @@ export async function POST(request: Request) {
       return Response.json({ data: result });
     }
 
-    if (subtotalNum < raw.minAmount) {
+    const minAmount = typeof c.minAmount === "number" ? c.minAmount : 0;
+    if (subtotalNum < minAmount) {
       const result: CouponValidationResult = {
         valid: false,
-        message: `Minimum order amount of ₹${raw.minAmount} required`,
+        message: `Minimum order amount of ₹${minAmount} required`,
       };
       return Response.json({ data: result });
     }
 
     // Compute discount
+    const value = typeof c.value === "number" ? c.value : Number(c.value ?? 0);
     let discount = 0;
-    if (raw.type === "PERCENT") {
-      const computed = (subtotalNum * raw.value) / 100;
+    if (c.type === "PERCENT") {
+      const computed = (subtotalNum * value) / 100;
       discount =
-        raw.maxDiscount != null
-          ? Math.min(computed, raw.maxDiscount)
+        c.maxDiscount != null
+          ? Math.min(computed, Number(c.maxDiscount))
           : computed;
-    } else if (raw.type === "FLAT") {
-      discount = Math.min(raw.value, subtotalNum);
+    } else if (c.type === "FLAT") {
+      discount = Math.min(value, subtotalNum);
     } else {
       const result: CouponValidationResult = {
         valid: false,
@@ -103,7 +117,7 @@ export async function POST(request: Request) {
     const result: CouponValidationResult = {
       valid: true,
       discount,
-      coupon: transformCoupon(raw),
+      coupon,
     };
     return Response.json({ data: result });
   } catch (err) {

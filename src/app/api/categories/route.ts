@@ -1,24 +1,20 @@
-import { db } from "@/lib/db";
-import type { Category } from "@/lib/types";
+import { db } from "@/lib/firebase";
+import { transformCategory } from "@/lib/firestore-helpers";
 
-function transformCategory(raw: any): Category {
-  return {
-    id: raw.id,
-    name: raw.name,
-    slug: raw.slug,
-    icon: raw.icon,
-    description: raw.description ?? null,
-    color: raw.color,
-    createdAt: raw.createdAt?.toISOString?.() ?? raw.createdAt,
-  };
-}
-
+/**
+ * GET /api/categories
+ *
+ * List all categories, ordered by createdAt ascending. Single orderBy with no
+ * equality filters does not require a composite index in Firestore, so this is
+ * a clean query. Returns `{ data: categories[] }`.
+ */
 export async function GET() {
   try {
-    const rawCategories = await db.category.findMany({
-      orderBy: { createdAt: "asc" },
-    });
-    const categories = rawCategories.map(transformCategory);
+    const snap = await db
+      .collection("categories")
+      .orderBy("createdAt", "asc")
+      .get();
+    const categories = snap.docs.map(transformCategory);
     return Response.json({ data: categories });
   } catch (err) {
     console.error("[GET /api/categories] error:", err);

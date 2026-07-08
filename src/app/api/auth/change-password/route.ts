@@ -1,5 +1,4 @@
-import { cookies } from "next/headers";
-import { db } from "@/lib/db";
+import { db } from "@/lib/firebase";
 import { verifyPassword, hashPassword, getUserFromRequest } from "@/lib/auth";
 
 /**
@@ -40,14 +39,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fetch the full user record (with password hash) from DB.
-    const dbUser = await db.user.findUnique({ where: { id: user.id } });
-    if (!dbUser) {
+    // Fetch the full user record (with password hash) from Firestore.
+    const userDocRef = db.collection("users").doc(user.id);
+    const userDoc = await userDocRef.get();
+    if (!userDoc.exists) {
       return Response.json({ error: "User not found" }, { status: 404 });
     }
+    const dbUser = userDoc.data() as { password?: string };
 
     // Verify current password.
-    const valid = await verifyPassword(currentPassword, dbUser.password);
+    const valid = await verifyPassword(currentPassword, dbUser.password ?? "");
     if (!valid) {
       return Response.json(
         { error: "Current password is incorrect" },
@@ -57,10 +58,7 @@ export async function POST(request: Request) {
 
     // Hash + save the new password.
     const hashed = await hashPassword(newPassword);
-    await db.user.update({
-      where: { id: user.id },
-      data: { password: hashed },
-    });
+    await userDocRef.update({ password: hashed });
 
     return Response.json({ success: true });
   } catch (err) {

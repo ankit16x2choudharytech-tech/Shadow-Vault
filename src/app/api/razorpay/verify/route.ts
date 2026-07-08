@@ -1,6 +1,7 @@
 import crypto from "crypto";
-import { db } from "@/lib/db";
-import { parseJsonArray } from "@/lib/api";
+import { db } from "@/lib/firebase";
+import { FieldValue } from "firebase-admin/firestore";
+import { transformOrder, toISO } from "@/lib/firestore-helpers";
 
 interface OrderData {
   customerName?: string;
@@ -8,32 +9,6 @@ interface OrderData {
   items?: Array<{ productId: string }>;
   couponCode?: string | null;
   total?: number;
-}
-
-function transformOrder(raw: any) {
-  return {
-    id: raw.id,
-    orderNumber: raw.orderNumber,
-    customerName: raw.customerName,
-    customerEmail: raw.customerEmail,
-    total: raw.total,
-    status: raw.status,
-    paymentId: raw.paymentId ?? null,
-    paymentMethod: raw.paymentMethod,
-    itemsJson: parseJsonArray(raw.itemsJson),
-    couponCode: raw.couponCode ?? null,
-    discount: raw.discount,
-    createdAt: raw.createdAt?.toISOString?.() ?? raw.createdAt,
-    items: (raw.items ?? []).map((it: any) => ({
-      id: it.id,
-      orderId: it.orderId,
-      productId: it.productId,
-      name: it.name,
-      price: it.price,
-      version: it.version,
-      thumbnail: it.thumbnail,
-    })),
-  };
 }
 
 /**
@@ -45,9 +20,15 @@ function transformOrder(raw: any) {
  *
  * Verifies the Razorpay payment signature using HMAC SHA256 of
  * `${razorpay_order_id}|${razorpay_payment_id}` signed with
- * RAZORPAY_KEY_SECRET. If valid, creates the Order (status PAID),
- * its OrderItems, increments product sales, and bumps coupon usedCount
- * when a coupon code was applied.
+ * RAZORPAY_KEY_SECRET. If valid, creates the Order (status PAID) in Firestore
+ * with its items stored as a native array, increments product sales (atomic),
+ * and bumps coupon usedCount (atomic) when a coupon code was applied.
+ *
+ * Demo-mode bypass (preserved from Prisma version): if `razorpay_signature`
+ * is literally "demo" or `razorpay_payment_id` starts with `pay_demo_`, the
+ * HMAC check is skipped — used by the frontend's demo fallback path.
+ *
+ * Returns `{ success: true, order: <Order> }`.
  */
 export async function POST(request: Request) {
   try {
@@ -122,61 +103,76 @@ export async function POST(request: Request) {
       }
     }
 
-    // Signature valid — create the Order in the DB.
+    // Signature valid — create the Order in Firestore.
     const { customerName, customerEmail, items, couponCode, total } =
       orderData;
     const productIds: string[] = items!.map((i) => String(i.productId));
-    const products = await db.product.findMany({
-      where: { id: { in: productIds } },
-    });
+    const productDocs = await Promise.all(
+      productIds.map((pid) => db.collection("products").doc(pid).get())
+    );
 
-    if (products.length !== productIds.length) {
+    const missing = productDocs.filter((d) => !d.exists);
+    if (missing.length > 0) {
       return Response.json(
         { error: "One or more products not found" },
         { status: 400 }
       );
     }
 
-    const productMap = new Map(products.map((p) => [p.id, p]));
     let subtotal = 0;
-    const orderItemsData = productIds.map((pid) => {
-      const p = productMap.get(pid)!;
-      subtotal += p.price;
+    const orderItemsData = productDocs.map((d) => {
+      const p = (d.data() ?? {}) as Record<string, any>;
+      const price =
+        typeof p.price === "number" ? p.price : Number(p.price ?? 0);
+      subtotal += price;
       return {
-        productId: p.id,
-        name: p.name,
-        price: p.price,
-        version: p.version,
-        thumbnail: p.thumbnail,
+        productId: d.id,
+        name: p.name ?? "",
+        price,
+        version: p.version ?? "1.0.0",
+        thumbnail: p.thumbnail ?? "",
       };
     });
 
     // Validate coupon (if provided) and compute discount.
     let discount = 0;
     let appliedCouponCode: string | null = null;
+    let appliedCouponId: string | null = null;
     if (couponCode) {
-      const coupon = await db.coupon.findUnique({
-        where: { code: String(couponCode) },
-      });
-      if (coupon) {
+      const codeSnap = await db
+        .collection("coupons")
+        .where("code", "==", String(couponCode).toUpperCase())
+        .limit(1)
+        .get();
+
+      if (!codeSnap.empty) {
+        const cdoc = codeSnap.docs[0];
+        const c = (cdoc.data() ?? {}) as Record<string, any>;
         const now = new Date();
+        const expiryIso = toISO(c.expiry);
+        const expiry = expiryIso ? new Date(expiryIso) : null;
         const active =
-          coupon.active &&
-          (!coupon.expiry || new Date(coupon.expiry) >= now) &&
-          coupon.usedCount < coupon.usageLimit &&
-          subtotal >= coupon.minAmount;
+          c.active &&
+          (!expiry || expiry >= now) &&
+          (typeof c.usedCount === "number" ? c.usedCount : 0) <
+            (typeof c.usageLimit === "number" ? c.usageLimit : 0) &&
+          subtotal >= (typeof c.minAmount === "number" ? c.minAmount : 0);
+
         if (active) {
-          if (coupon.type === "PERCENT") {
-            const computed = (subtotal * coupon.value) / 100;
+          const value =
+            typeof c.value === "number" ? c.value : Number(c.value ?? 0);
+          if (c.type === "PERCENT") {
+            const computed = (subtotal * value) / 100;
             discount =
-              coupon.maxDiscount != null
-                ? Math.min(computed, coupon.maxDiscount)
+              c.maxDiscount != null
+                ? Math.min(computed, Number(c.maxDiscount))
                 : computed;
-          } else if (coupon.type === "FLAT") {
-            discount = Math.min(coupon.value, subtotal);
+          } else if (c.type === "FLAT") {
+            discount = Math.min(value, subtotal);
           }
           discount = Math.floor(discount);
-          appliedCouponCode = coupon.code;
+          appliedCouponCode = c.code ?? String(couponCode).toUpperCase();
+          appliedCouponId = cdoc.id;
         }
       }
     }
@@ -192,56 +188,43 @@ export async function POST(request: Request) {
     }`;
     const itemsSnapshot = orderItemsData.map((it) => ({ ...it, qty: 1 }));
 
-    const created = await db.order.create({
-      data: {
-        orderNumber,
-        customerName: String(customerName),
-        customerEmail: String(customerEmail),
-        total: finalTotal,
-        status: "PAID",
-        paymentId: String(razorpay_payment_id),
-        paymentMethod: "RAZORPAY",
-        itemsJson: JSON.stringify(itemsSnapshot),
-        couponCode: appliedCouponCode,
-        discount,
-      },
+    const orderRef = await db.collection("orders").add({
+      orderNumber,
+      customerName: String(customerName),
+      customerEmail: String(customerEmail),
+      total: finalTotal,
+      status: "PAID",
+      paymentId: String(razorpay_payment_id),
+      paymentMethod: "RAZORPAY",
+      itemsJson: JSON.stringify(itemsSnapshot),
+      couponCode: appliedCouponCode,
+      discount,
+      createdAt: new Date(),
+      items: orderItemsData,
     });
 
-    for (const it of orderItemsData) {
-      await db.orderItem.create({
-        data: {
-          orderId: created.id,
-          productId: it.productId,
-          name: it.name,
-          price: it.price,
-          version: it.version,
-          thumbnail: it.thumbnail,
-        },
-      });
+    // Increment product sales (atomic).
+    await Promise.all(
+      productIds.map((pid) =>
+        db
+          .collection("products")
+          .doc(pid)
+          .update({ sales: FieldValue.increment(1) })
+      )
+    );
+
+    // Increment coupon usedCount if applied (atomic).
+    if (appliedCouponId) {
+      await db
+        .collection("coupons")
+        .doc(appliedCouponId)
+        .update({ usedCount: FieldValue.increment(1) });
     }
 
-    for (const pid of productIds) {
-      await db.product.update({
-        where: { id: pid },
-        data: { sales: { increment: 1 } },
-      });
-    }
-
-    if (appliedCouponCode) {
-      await db.coupon.updateMany({
-        where: { code: appliedCouponCode },
-        data: { usedCount: { increment: 1 } },
-      });
-    }
-
-    const finalOrder = await db.order.findUnique({
-      where: { id: created.id },
-      include: { items: true },
-    });
-
+    const finalSnap = await orderRef.get();
     return Response.json({
       success: true,
-      order: transformOrder(finalOrder),
+      order: transformOrder(finalSnap),
     });
   } catch (err) {
     console.error("[POST /api/razorpay/verify] error:", err);

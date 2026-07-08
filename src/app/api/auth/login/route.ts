@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { db } from "@/lib/firebase";
 import {
   verifyPassword,
   createToken,
@@ -19,7 +19,12 @@ export async function POST(request: Request) {
     const { email, password } = body as {
       email?: string;
       password?: string;
+      role?: string;
     };
+
+    // `role` in the body is intentionally ignored — role is derived from the
+    // user record, not the request.
+    void (body as { role?: string }).role;
 
     if (!email || !password) {
       return Response.json(
@@ -29,17 +34,28 @@ export async function POST(request: Request) {
     }
 
     const trimmedEmail = String(email).trim().toLowerCase();
-    const user = await db.user.findUnique({
-      where: { email: trimmedEmail },
-    });
-    if (!user) {
+    const snap = await db
+      .collection("users")
+      .where("email", "==", trimmedEmail)
+      .limit(1)
+      .get();
+    if (snap.empty) {
       return Response.json(
         { error: "Invalid credentials" },
         { status: 401 }
       );
     }
 
-    const ok = await verifyPassword(String(password), user.password);
+    const userDoc = snap.docs[0];
+    const user = userDoc.data() as {
+      name?: string;
+      email?: string;
+      password?: string;
+      role?: string;
+      banned?: boolean;
+    };
+
+    const ok = await verifyPassword(String(password), user.password ?? "");
     if (!ok) {
       return Response.json(
         { error: "Invalid credentials" },
@@ -54,13 +70,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const token = createToken(user.id, user.role);
+    const token = createToken(userDoc.id, user.role ?? "customer");
     const response = Response.json({
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
+        id: userDoc.id,
+        name: user.name ?? "",
+        email: user.email ?? "",
+        role: user.role ?? "customer",
       },
     });
     await setAuthCookie(response, token);

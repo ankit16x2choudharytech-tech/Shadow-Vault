@@ -1,65 +1,52 @@
-import { db } from "@/lib/db";
-import type { Order, OrderItem } from "@/lib/types";
-
-function transformOrderItem(raw: any): OrderItem {
-  return {
-    id: raw.id,
-    orderId: raw.orderId,
-    productId: raw.productId,
-    name: raw.name,
-    price: raw.price,
-    version: raw.version,
-    thumbnail: raw.thumbnail,
-  };
-}
-
-function transformOrder(raw: any): Order {
-  return {
-    id: raw.id,
-    orderNumber: raw.orderNumber,
-    customerName: raw.customerName,
-    customerEmail: raw.customerEmail,
-    total: raw.total,
-    status: raw.status,
-    paymentId: raw.paymentId ?? null,
-    paymentMethod: raw.paymentMethod,
-    itemsJson: raw.itemsJson,
-    couponCode: raw.couponCode ?? null,
-    discount: raw.discount,
-    createdAt: raw.createdAt?.toISOString?.() ?? raw.createdAt,
-    items: raw.items?.map(transformOrderItem),
-  };
-}
+import { db } from "@/lib/firebase";
+import { FieldValue } from "firebase-admin/firestore";
+import { transformOrder, toISO } from "@/lib/firestore-helpers";
 
 /**
  * GET /api/orders
  *   ?email=<customerEmail>  -> returns that customer's orders (customer dashboard)
- *   ?recent=true            -> returns most recent 10 orders (admin dashboard)
- *   (no params)             -> returns recent orders (admin dashboard default)
+ *   (no params)             -> returns recent 50 orders (admin dashboard default)
+ *
+ * Each returned order includes its `items` array (stored natively inside the
+ * order document — no separate `orderItems` collection).
  */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const email = searchParams.get("email");
 
+    let snap;
     if (email) {
-      const rawOrders = await db.order.findMany({
-        where: { customerEmail: email },
-        include: { items: true },
-        orderBy: { createdAt: "desc" },
-      });
-      const orders = rawOrders.map(transformOrder);
-      return Response.json({ data: orders });
+      // Customer dashboard — their own orders, newest first.
+      // Equality filter on customerEmail + orderBy createdAt requires a composite
+      // index in Firestore. To avoid index-setup friction we fetch all matching
+      // by equality then JS-sort by createdAt desc.
+      snap = await db
+        .collection("orders")
+        .where("customerEmail", "==", email)
+        .get();
+    } else {
+      // Admin dashboard — recent orders. Single orderBy, no equality filter,
+      // so no composite index needed. Limit 50 for safety.
+      snap = await db
+        .collection("orders")
+        .orderBy("createdAt", "desc")
+        .limit(50)
+        .get();
     }
 
-    // Admin dashboard — recent orders
-    const rawRecent = await db.order.findMany({
-      include: { items: true },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-    });
-    const recent = rawRecent.map(transformOrder);
-    return Response.json({ data: recent });
+    let orders = snap.docs.map((d) => transformOrder(d));
+
+    // For the email-filtered branch, sort client-side by createdAt desc.
+    if (email) {
+      orders = orders.sort((a, b) => {
+        const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return tb - ta;
+      });
+    }
+
+    return Response.json({ data: orders });
   } catch (err) {
     console.error("[GET /api/orders] error:", err);
     return Response.json(
@@ -77,21 +64,27 @@ export async function GET(request: Request) {
  *   couponCode?: string,
  *   paymentId?: string
  * }
+ *
  * Simulates a successful Razorpay payment: sets status "PAID",
- * increments product sales, returns the created order.
+ * increments product sales (atomic FieldValue.increment), bumps coupon
+ * usedCount when a coupon was applied, returns the created order.
+ *
+ * Tax calc preserved from the Prisma version: total = max(0, subtotal - discount).
+ * (The frontend's checkout-modal computes a separate display tax, but the
+ * stored order total follows the existing server-side formula.)
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const {
-      customerName,
-      customerEmail,
-      items,
-      couponCode,
-      paymentId,
-    } = body ?? {};
+    const { customerName, customerEmail, items, couponCode, paymentId } =
+      body ?? {};
 
-    if (!customerName || !customerEmail || !Array.isArray(items) || items.length === 0) {
+    if (
+      !customerName ||
+      !customerEmail ||
+      !Array.isArray(items) ||
+      items.length === 0
+    ) {
       return Response.json(
         {
           error:
@@ -101,125 +94,127 @@ export async function POST(request: Request) {
       );
     }
 
-    // Resolve products
-    const productIds: string[] = items.map((i: any) => i.productId);
-    const products = await db.product.findMany({
-      where: { id: { in: productIds } },
-    });
+    // Resolve products — Firestore has no `where id in [...]`, so fetch each doc.
+    const productIds: string[] = items.map((i: any) => String(i.productId));
+    const productDocs = await Promise.all(
+      productIds.map((pid) => db.collection("products").doc(pid).get())
+    );
 
-    if (products.length !== productIds.length) {
+    const missing = productDocs.filter((d) => !d.exists);
+    if (missing.length > 0) {
       return Response.json(
         { error: "One or more products not found" },
         { status: 400 }
       );
     }
 
-    const productMap = new Map(products.map((p) => [p.id, p]));
     let subtotal = 0;
-    const orderItemsData = productIds.map((pid) => {
-      const p = productMap.get(pid)!;
-      subtotal += p.price;
+    const orderItemsData = productDocs.map((d) => {
+      const p = (d.data() ?? {}) as Record<string, any>;
+      const price =
+        typeof p.price === "number" ? p.price : Number(p.price ?? 0);
+      subtotal += price;
       return {
-        productId: p.id,
-        name: p.name,
-        price: p.price,
-        version: p.version,
-        thumbnail: p.thumbnail,
+        productId: d.id,
+        name: p.name ?? "",
+        price,
+        version: p.version ?? "1.0.0",
+        thumbnail: p.thumbnail ?? "",
       };
     });
 
-    // Validate coupon if provided
+    // Validate coupon if provided.
     let discount = 0;
     let appliedCouponCode: string | null = null;
+    let appliedCouponId: string | null = null;
     if (couponCode) {
-      const coupon = await db.coupon.findUnique({
-        where: { code: String(couponCode) },
-      });
-      if (coupon) {
+      const codeSnap = await db
+        .collection("coupons")
+        .where("code", "==", String(couponCode).toUpperCase())
+        .limit(1)
+        .get();
+
+      if (!codeSnap.empty) {
+        const cdoc = codeSnap.docs[0];
+        const c = (cdoc.data() ?? {}) as Record<string, any>;
         const now = new Date();
+        const expiryIso = toISO(c.expiry);
+        const expiry = expiryIso ? new Date(expiryIso) : null;
         const active =
-          coupon.active &&
-          (!coupon.expiry || new Date(coupon.expiry) >= now) &&
-          coupon.usedCount < coupon.usageLimit &&
-          subtotal >= coupon.minAmount;
+          c.active &&
+          (!expiry || expiry >= now) &&
+          (typeof c.usedCount === "number" ? c.usedCount : 0) <
+            (typeof c.usageLimit === "number" ? c.usageLimit : 0) &&
+          subtotal >= (typeof c.minAmount === "number" ? c.minAmount : 0);
+
         if (active) {
-          if (coupon.type === "PERCENT") {
-            const computed = (subtotal * coupon.value) / 100;
+          const value = typeof c.value === "number" ? c.value : Number(c.value ?? 0);
+          if (c.type === "PERCENT") {
+            const computed = (subtotal * value) / 100;
             discount =
-              coupon.maxDiscount != null
-                ? Math.min(computed, coupon.maxDiscount)
+              c.maxDiscount != null
+                ? Math.min(computed, Number(c.maxDiscount))
                 : computed;
-          } else if (coupon.type === "FLAT") {
-            discount = Math.min(coupon.value, subtotal);
+          } else if (c.type === "FLAT") {
+            discount = Math.min(value, subtotal);
           }
           discount = Math.floor(discount);
-          appliedCouponCode = coupon.code;
+          appliedCouponCode = c.code ?? String(couponCode).toUpperCase();
+          appliedCouponId = cdoc.id;
         }
       }
     }
 
     const total = Math.max(0, subtotal - discount);
 
-    // Generate order number
+    // Generate order number.
     const orderNumber = `SV-${new Date().getFullYear()}-${
       Math.floor(10000 + Math.random() * 89999)
     }`;
 
+    // Build items snapshot for itemsJson (backward compat — JSON string).
     const itemsSnapshot = orderItemsData.map((it) => ({ ...it, qty: 1 }));
 
-    const created = await db.order.create({
-      data: {
-        orderNumber,
-        customerName: String(customerName),
-        customerEmail: String(customerEmail),
-        total,
-        status: "PAID", // simulating successful Razorpay payment
-        paymentId: paymentId ? String(paymentId) : `pay_SVDemo${Date.now()}`,
-        paymentMethod: "RAZORPAY",
-        itemsJson: JSON.stringify(itemsSnapshot),
-        couponCode: appliedCouponCode,
-        discount,
-      },
-      include: { items: true },
+    // Create the order document. Items are stored as a native array.
+    const orderRef = await db.collection("orders").add({
+      orderNumber,
+      customerName: String(customerName),
+      customerEmail: String(customerEmail),
+      total,
+      status: "PAID", // simulating successful Razorpay payment
+      paymentId: paymentId ? String(paymentId) : `pay_SVDemo${Date.now()}`,
+      paymentMethod: "RAZORPAY",
+      itemsJson: JSON.stringify(itemsSnapshot),
+      couponCode: appliedCouponCode,
+      discount,
+      createdAt: new Date(),
+      items: orderItemsData,
     });
 
-    // Create order items
-    for (const it of orderItemsData) {
-      await db.orderItem.create({
-        data: {
-          orderId: created.id,
-          productId: it.productId,
-          name: it.name,
-          price: it.price,
-          version: it.version,
-          thumbnail: it.thumbnail,
-        },
-      });
+    // Increment product sales (atomic).
+    await Promise.all(
+      productIds.map((pid) =>
+        db
+          .collection("products")
+          .doc(pid)
+          .update({ sales: FieldValue.increment(1) })
+      )
+    );
+
+    // Increment coupon usedCount if applied (atomic).
+    if (appliedCouponId) {
+      await db
+        .collection("coupons")
+        .doc(appliedCouponId)
+        .update({ usedCount: FieldValue.increment(1) });
     }
 
-    // Increment product sales
-    for (const pid of productIds) {
-      await db.product.update({
-        where: { id: pid },
-        data: { sales: { increment: 1 } },
-      });
-    }
-
-    // Increment coupon usage if applied
-    if (appliedCouponCode) {
-      await db.coupon.updateMany({
-        where: { code: appliedCouponCode },
-        data: { usedCount: { increment: 1 } },
-      });
-    }
-
-    // Refetch with items to return consistent shape
-    const finalOrder = await db.order.findUnique({
-      where: { id: created.id },
-      include: { items: true },
-    });
-
-    return Response.json({ data: transformOrder(finalOrder) }, { status: 201 });
+    // Refetch with items to return consistent shape.
+    const finalSnap = await orderRef.get();
+    return Response.json(
+      { data: transformOrder(finalSnap) },
+      { status: 201 }
+    );
   } catch (err) {
     console.error("[POST /api/orders] error:", err);
     return Response.json(

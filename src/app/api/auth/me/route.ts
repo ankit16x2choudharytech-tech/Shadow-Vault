@@ -1,5 +1,5 @@
 import { getUserFromRequest } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { db } from "@/lib/firebase";
 
 /**
  * GET /api/auth/me — return the currently authenticated user.
@@ -17,24 +17,29 @@ export async function GET(request: Request) {
     }
 
     // Fetch the freshest tier/orders/spent values from the DB.
-    const fresh = await db.user.findUnique({
-      where: { id: authUser.id },
-    });
-    if (!fresh) {
+    const freshDoc = await db.collection("users").doc(authUser.id).get();
+    if (!freshDoc.exists) {
       return Response.json(
         { error: "Not authenticated" },
         { status: 401 }
       );
     }
+    const fresh = freshDoc.data() as {
+      name?: string;
+      email?: string;
+      role?: string;
+      banned?: boolean;
+      tier?: string;
+    };
 
     return Response.json({
       user: {
-        id: fresh.id,
-        name: fresh.name,
-        email: fresh.email,
-        role: fresh.role,
-        banned: fresh.banned,
-        tier: fresh.tier,
+        id: freshDoc.id,
+        name: fresh.name ?? "",
+        email: fresh.email ?? "",
+        role: fresh.role ?? "customer",
+        banned: Boolean(fresh.banned),
+        tier: fresh.tier ?? "Standard",
       },
     });
   } catch (err) {

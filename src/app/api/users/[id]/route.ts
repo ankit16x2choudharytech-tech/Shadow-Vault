@@ -1,19 +1,6 @@
-import { db } from "@/lib/db";
+import { db } from "@/lib/firebase";
 import { hashPassword } from "@/lib/auth";
-
-function publicUser(u: any) {
-  return {
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    role: u.role,
-    banned: u.banned,
-    tier: u.tier,
-    orders: u.orders,
-    spent: u.spent,
-    createdAt: u.createdAt?.toISOString?.() ?? u.createdAt,
-  };
-}
+import { transformUser } from "@/lib/firestore-helpers";
 
 /**
  * GET /api/users/[id] — return a single user (password excluded).
@@ -24,29 +11,14 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const user = await db.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        banned: true,
-        tier: true,
-        orders: true,
-        spent: true,
-        createdAt: true,
-      },
-    });
-    if (!user) {
+    const snap = await db.collection("users").doc(id).get();
+    if (!snap.exists) {
       return Response.json(
         { error: "User not found" },
         { status: 404 }
       );
     }
-    return Response.json({
-      data: publicUser(user),
-    });
+    return Response.json({ data: transformUser(snap) });
   } catch (err) {
     console.error("[GET /api/users/[id]] error:", err);
     return Response.json(
@@ -59,7 +31,7 @@ export async function GET(
 /**
  * PUT /api/users/[id] — ban/unban a user (admin).
  * Body: { banned: boolean }.
- * Returns the updated user { id, name, email, role, banned, tier, orders, spent }.
+ * Returns the updated user (transformUser — password excluded).
  */
 export async function PUT(
   request: Request,
@@ -83,31 +55,18 @@ export async function PUT(
       );
     }
 
-    const existing = await db.user.findUnique({ where: { id } });
-    if (!existing) {
+    const existing = await db.collection("users").doc(id).get();
+    if (!existing.exists) {
       return Response.json(
         { error: "User not found" },
         { status: 404 }
       );
     }
 
-    const updated = await db.user.update({
-      where: { id },
-      data: { banned },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        banned: true,
-        tier: true,
-        orders: true,
-        spent: true,
-        createdAt: true,
-      },
-    });
+    await db.collection("users").doc(id).update({ banned });
 
-    return Response.json({ data: publicUser(updated) });
+    const updated = await db.collection("users").doc(id).get();
+    return Response.json({ data: transformUser(updated) });
   } catch (err) {
     console.error("[PUT /api/users/[id]] error:", err);
     return Response.json(
@@ -118,9 +77,11 @@ export async function PUT(
 }
 
 /**
- * PATCH /api/users/[id] — admin multi-field update (ban/unban, reset
- * password, change tier). Kept for backwards compatibility with the existing
- * admin dashboard which calls PATCH.
+ * PATCH /api/users/[id] — admin multi-field update.
+ * Body: { password?, tier? } (also accepts `banned` for backwards compat).
+ *  - password: hashed with bcrypt before write.
+ *  - tier:     written as-is (string).
+ *  - banned:   written as-is (boolean) when provided.
  */
 export async function PATCH(
   request: Request,
@@ -153,30 +114,17 @@ export async function PATCH(
       );
     }
 
-    const existing = await db.user.findUnique({ where: { id } });
-    if (!existing) {
+    const existing = await db.collection("users").doc(id).get();
+    if (!existing.exists) {
       return Response.json(
         { error: "User not found" },
         { status: 404 }
       );
     }
 
-    const updated = await db.user.update({
-      where: { id },
-      data,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        banned: true,
-        tier: true,
-        orders: true,
-        spent: true,
-        createdAt: true,
-      },
-    });
-    return Response.json({ data: publicUser(updated) });
+    await db.collection("users").doc(id).update(data);
+    const updated = await db.collection("users").doc(id).get();
+    return Response.json({ data: transformUser(updated) });
   } catch (err) {
     console.error("[PATCH /api/users/[id]] error:", err);
     return Response.json(
@@ -195,14 +143,14 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const existing = await db.user.findUnique({ where: { id } });
-    if (!existing) {
+    const existing = await db.collection("users").doc(id).get();
+    if (!existing.exists) {
       return Response.json(
         { error: "User not found" },
         { status: 404 }
       );
     }
-    await db.user.delete({ where: { id } });
+    await db.collection("users").doc(id).delete();
     return Response.json({ ok: true });
   } catch (err) {
     console.error("[DELETE /api/users/[id]] error:", err);

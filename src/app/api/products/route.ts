@@ -1,102 +1,83 @@
 import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
-import { parseJsonArray } from "@/lib/api";
-import type { Product } from "@/lib/types";
+import { db } from "@/lib/firebase";
+import { transformProduct } from "@/lib/firestore-helpers";
 
 /**
- * Transform a raw Prisma product (with JSON-string fields) into a typed Product
- * with arrays parsed.
+ * GET /api/products
+ *
+ * List products. Query params:
+ *   ?category=<slug>    filter by category slug
+ *   ?type=<type>        filter by product type
+ *   ?q=<search>         search name/tagline/description (JS-side, dataset is small)
+ *   ?sort=<popular|newest|price-low|price-high|rating>
+ *   ?limit=<n>
+ *
+ * Always filters `status == "ACTIVE"`. Sorting is done in JS to avoid
+ * Firestore composite-index requirements (dataset is small).
  */
-function transformProduct(raw: any): Product {
-  return {
-    id: raw.id,
-    name: raw.name,
-    slug: raw.slug,
-    tagline: raw.tagline,
-    description: raw.description,
-    thumbnail: raw.thumbnail,
-    banner: raw.banner,
-    version: raw.version,
-    price: raw.price,
-    originalPrice: raw.originalPrice ?? null,
-    category: raw.category,
-    type: raw.type,
-    compatibility: raw.compatibility,
-    fileSize: raw.fileSize,
-    releaseDate: raw.releaseDate?.toISOString?.() ?? raw.releaseDate,
-    telegramFileId: raw.telegramFileId,
-    status: raw.status,
-    rating: raw.rating,
-    sales: raw.sales,
-    views: raw.views,
-    features: parseJsonArray(raw.features),
-    screenshots: parseJsonArray(raw.screenshots),
-    whatsNew: parseJsonArray(raw.whatsNew),
-    requirements: parseJsonArray(raw.requirements),
-    badge: raw.badge ?? null,
-    createdAt: raw.createdAt?.toISOString?.() ?? raw.createdAt,
-    updatedAt: raw.updatedAt?.toISOString?.() ?? raw.updatedAt,
-    reviews: raw.reviews?.map((r: any) => ({
-      id: r.id,
-      productId: r.productId,
-      userName: r.userName,
-      userAvatar: r.userAvatar ?? null,
-      rating: r.rating,
-      comment: r.comment,
-      verified: r.verified,
-      likes: r.likes,
-      date: r.date?.toISOString?.() ?? r.date,
-    })),
-  };
-}
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");
     const type = searchParams.get("type");
     const q = searchParams.get("q");
-    const sort = searchParams.get("sort"); // popular | newest | price-low | price-high | rating
+    const sort = searchParams.get("sort");
     const limitParam = searchParams.get("limit");
-    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+    const limit = limitParam ? parseInt(limitParam, 10) : null;
 
-    const where: any = { status: "ACTIVE" };
-    if (category) where.category = category;
-    if (type) where.type = type;
+    // Build equality-only where chain — no composite indexes required.
+    let query: any = db
+      .collection("products")
+      .where("status", "==", "ACTIVE");
+    if (category) query = query.where("category", "==", category);
+    if (type) query = query.where("type", "==", type);
+
+    const snapshot = await query.get();
+    let products = snapshot.docs.map(transformProduct);
+
+    // Search filter in JS (dataset is small).
     if (q) {
-      where.OR = [
-        { name: { contains: q } },
-        { tagline: { contains: q } },
-        { description: { contains: q } },
-      ];
+      const needle = q.toLowerCase();
+      products = products.filter(
+        (p: any) =>
+          (p.name ?? "").toLowerCase().includes(needle) ||
+          (p.tagline ?? "").toLowerCase().includes(needle) ||
+          (p.description ?? "").toLowerCase().includes(needle)
+      );
     }
 
-    let orderBy: any = { createdAt: "desc" };
+    // Sort in JS (avoids Firestore composite-index requirements for
+    // equality-where + orderBy-on-different-field).
     switch (sort) {
       case "popular":
-        orderBy = { sales: "desc" };
+        products.sort((a: any, b: any) => (b.sales ?? 0) - (a.sales ?? 0));
         break;
       case "newest":
-        orderBy = { releaseDate: "desc" };
+        products.sort((a: any, b: any) =>
+          String(b.releaseDate ?? "").localeCompare(String(a.releaseDate ?? ""))
+        );
         break;
       case "price-low":
-        orderBy = { price: "asc" };
+        products.sort((a: any, b: any) => (a.price ?? 0) - (b.price ?? 0));
         break;
       case "price-high":
-        orderBy = { price: "desc" };
+        products.sort((a: any, b: any) => (b.price ?? 0) - (a.price ?? 0));
         break;
       case "rating":
-        orderBy = { rating: "desc" };
+        products.sort((a: any, b: any) => (b.rating ?? 0) - (a.rating ?? 0));
+        break;
+      default:
+        // Default: newest by createdAt.
+        products.sort((a: any, b: any) =>
+          String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))
+        );
         break;
     }
 
-    const rawProducts = await db.product.findMany({
-      where,
-      orderBy,
-      ...(limit && !Number.isNaN(limit) ? { take: limit } : {}),
-    });
+    if (limit && !Number.isNaN(limit)) {
+      products = products.slice(0, limit);
+    }
 
-    const products = rawProducts.map(transformProduct);
     return Response.json({ data: products });
   } catch (err) {
     console.error("[GET /api/products] error:", err);
@@ -116,6 +97,21 @@ function slugify(s: string): string {
     .replace(/-+/g, "-");
 }
 
+/**
+ * POST /api/products
+ *
+ * Create a product. Body fields map 1:1 to the product document.
+ * `features`/`screenshots`/`whatsNew`/`requirements` arrive as native arrays
+ * and are stored as native Firestore arrays (no JSON encoding).
+ *
+ * Slug is derived from `name`. If a product with that slug already exists, a
+ * short random suffix is appended to keep slugs unique.
+ *
+ * Defaults: releaseDate=now, rating=0, sales=0, views=0, status="ACTIVE",
+ * createdAt/updatedAt=now.
+ *
+ * Returns `{ data: product, message }` with status 201.
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -138,47 +134,76 @@ export async function POST(request: NextRequest) {
       whatsNew,
       requirements,
       badge,
-    } = body;
+    } = body ?? {};
 
     if (!name || !tagline || !description || price == null) {
       return Response.json(
-        { error: "Missing required fields: name, tagline, description, price" },
+        {
+          error: "Missing required fields: name, tagline, description, price",
+        },
         { status: 400 }
       );
     }
 
-    const slug = slugify(name);
-    const created = await db.product.create({
-      data: {
-        name,
-        slug,
-        tagline,
-        description,
-        thumbnail: thumbnail || "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80",
-        banner: banner || thumbnail || "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=1200&q=80",
-        version: version || "1.0.0",
-        price: Number(price),
-        originalPrice: originalPrice ? Number(originalPrice) : null,
-        category: category || "game-panels",
-        type: type || "Panel",
-        compatibility: compatibility || "Windows 10/11",
-        fileSize: fileSize || "—",
-        releaseDate: new Date(),
-        telegramFileId: telegramFileId || `BAAC${Math.random().toString(36).slice(2, 20)}`,
-        status: "ACTIVE",
-        rating: 0,
-        sales: 0,
-        views: 0,
-        features: JSON.stringify(features ?? []),
-        screenshots: JSON.stringify(screenshots ?? []),
-        whatsNew: JSON.stringify(whatsNew ?? ["Initial release"]),
-        requirements: JSON.stringify(requirements ?? []),
-        badge: badge ?? null,
-      },
-    });
+    let slug = slugify(String(name));
+    // Slug uniqueness — append a random suffix if the slug is taken.
+    const existingSnap = await db
+      .collection("products")
+      .where("slug", "==", slug)
+      .limit(1)
+      .get();
+    if (!existingSnap.empty) {
+      slug = `${slug}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    const now = new Date();
+    const productData = {
+      name: String(name),
+      slug,
+      tagline: String(tagline),
+      description: String(description),
+      thumbnail:
+        thumbnail ||
+        "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80",
+      banner:
+        banner ||
+        thumbnail ||
+        "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=1200&q=80",
+      version: version || "1.0.0",
+      price: Number(price),
+      originalPrice: originalPrice ? Number(originalPrice) : null,
+      category: category || "game-panels",
+      type: type || "Panel",
+      compatibility: compatibility || "Windows 10/11",
+      fileSize: fileSize || "—",
+      releaseDate: now,
+      telegramFileId:
+        telegramFileId || `BAAC${Math.random().toString(36).slice(2, 20)}`,
+      status: "ACTIVE",
+      rating: 0,
+      sales: 0,
+      views: 0,
+      features: Array.isArray(features) ? features.map(String) : [],
+      screenshots: Array.isArray(screenshots) ? screenshots.map(String) : [],
+      whatsNew: Array.isArray(whatsNew)
+        ? whatsNew.map(String)
+        : ["Initial release"],
+      requirements: Array.isArray(requirements)
+        ? requirements.map(String)
+        : [],
+      badge: badge ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const ref = await db.collection("products").add(productData);
+    const snap = await ref.get();
 
     return Response.json(
-      { data: transformProduct(created), message: "Product created successfully" },
+      {
+        data: transformProduct(snap),
+        message: "Product created successfully",
+      },
       { status: 201 }
     );
   } catch (err) {

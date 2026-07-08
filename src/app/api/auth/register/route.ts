@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { db } from "@/lib/firebase";
 import {
   hashPassword,
   createToken,
@@ -46,10 +46,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const existing = await db.user.findUnique({
-      where: { email: trimmedEmail },
-    });
-    if (existing) {
+    const existingSnap = await db
+      .collection("users")
+      .where("email", "==", trimmedEmail)
+      .limit(1)
+      .get();
+    if (!existingSnap.empty) {
       return Response.json(
         { error: "Email already registered" },
         { status: 409 }
@@ -57,23 +59,26 @@ export async function POST(request: Request) {
     }
 
     const hashed = await hashPassword(String(password));
-    const user = await db.user.create({
-      data: {
-        name: String(name).trim(),
-        email: trimmedEmail,
-        password: hashed,
-        role: "customer",
-      },
+    const ref = await db.collection("users").add({
+      name: String(name).trim(),
+      email: trimmedEmail,
+      password: hashed,
+      role: "customer",
+      banned: false,
+      tier: "Standard",
+      orders: 0,
+      spent: 0,
+      createdAt: new Date(),
     });
 
-    const token = createToken(user.id, user.role);
+    const token = createToken(ref.id, "customer");
     const response = Response.json(
       {
         user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
+          id: ref.id,
+          name: String(name).trim(),
+          email: trimmedEmail,
+          role: "customer",
         },
       },
       { status: 201 }

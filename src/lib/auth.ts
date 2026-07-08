@@ -3,7 +3,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
-import { db } from "@/lib/db";
+import { db } from "@/lib/firebase";
 
 const COOKIE_NAME = "sv_token";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
@@ -74,18 +74,23 @@ export async function getUserFromRequest(
     };
     if (!payload?.userId) return null;
 
-    const user = await db.user.findUnique({
-      where: { id: payload.userId },
-    });
+    const userDoc = await db.collection("users").doc(payload.userId).get();
+    if (!userDoc.exists) return null;
+    const user = userDoc.data() as {
+      name?: string;
+      email?: string;
+      role?: string;
+      banned?: boolean;
+    };
     if (!user) return null;
     if (user.banned) return null;
 
     return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      banned: user.banned,
+      id: userDoc.id,
+      name: user.name ?? "",
+      email: user.email ?? "",
+      role: user.role ?? "customer",
+      banned: Boolean(user.banned),
     };
   } catch {
     return null;
