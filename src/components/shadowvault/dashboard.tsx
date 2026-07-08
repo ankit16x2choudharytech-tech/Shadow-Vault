@@ -28,6 +28,8 @@ import {
   Trash2,
   Pencil,
   ShieldBan,
+  Loader2,
+  Smartphone,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useApi, invalidateCache } from "@/lib/use-api";
@@ -36,6 +38,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -259,6 +267,8 @@ function CustomerDashboard({ email }: { email: string }) {
   };
 
   const [tab, setTab] = useState("overview");
+  const [pwModalOpen, setPwModalOpen] = useState(false);
+  const [twoFAModalOpen, setTwoFAModalOpen] = useState(false);
   const tabsList = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "downloads", label: "Downloads", icon: Download },
@@ -491,57 +501,48 @@ function CustomerDashboard({ email }: { email: string }) {
         )}
 
         {tab === "profile" && (
-          <div
-            key="profile"
-            className="grid lg:grid-cols-3 gap-6"
-          >
-            <Card className="glass p-6 lg:col-span-2">
+          <div key="profile">
+            <Card className="glass p-6">
               <h3 className="font-semibold mb-4">Profile Details</h3>
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <ProfileField label="Full Name" value="Demo Gamer" />
                 <ProfileField label="Email" value={email} />
                 <ProfileField label="Member Since" value="Jan 2025" />
                 <ProfileField label="Account Tier" value="Premium" badge />
                 <ProfileField label="Total Orders" value={String((orders ?? []).length)} />
-                <ProfileField label="Referral Code" value="DEMO500" />
+                <ProfileField label="Account ID" value={email.split("@")[0]?.slice(0, 12) || "—"} />
               </div>
-              <div className="flex gap-2 mt-5">
-                <Button variant="outline" className="glass border-white/15">
+              <div className="flex flex-wrap gap-2 mt-6">
+                <Button
+                  variant="outline"
+                  className="glass border-white/15 btn-magnetic"
+                  onClick={() => setPwModalOpen(true)}
+                >
                   <KeyRound className="h-4 w-4 mr-2" />
                   Change Password
                 </Button>
-                <Button variant="outline" className="glass border-white/15">
+                <Button
+                  variant="outline"
+                  className="glass border-white/15 btn-magnetic"
+                  onClick={() => setTwoFAModalOpen(true)}
+                >
+                  <ShieldCheck className="h-4 w-4 mr-2" />
                   Enable 2FA
                 </Button>
               </div>
             </Card>
-            <Card className="glass p-6">
-              <h3 className="font-semibold mb-4 flex items-center gap-2">
-                <Crown className="h-4 w-4 text-[var(--neon-amber)]" />
-                Referral Earnings
-              </h3>
-              <div className="text-center py-4">
-                <div className="text-3xl font-bold text-gradient">₹2,450</div>
-                <div className="text-xs text-muted-foreground mt-1">Available to withdraw</div>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Friends invited</span>
-                  <span className="font-medium">14</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Conversion rate</span>
-                  <span className="font-medium text-[var(--neon-emerald)]">71%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Lifetime earnings</span>
-                  <span className="font-medium">₹8,920</span>
-                </div>
-              </div>
-              <Button className="w-full mt-4 btn-magnetic bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0">
-                Withdraw to Bank
-              </Button>
-            </Card>
+
+            {/* Change Password modal */}
+            <ChangePasswordModal
+              open={pwModalOpen}
+              onOpenChange={setPwModalOpen}
+              email={email}
+            />
+            {/* 2FA setup modal */}
+            <TwoFactorModal
+              open={twoFAModalOpen}
+              onOpenChange={setTwoFAModalOpen}
+            />
           </div>
         )}
       </div>
@@ -1389,6 +1390,344 @@ function StatCard({
       <div className="text-2xl font-bold relative">{value}</div>
       <div className="text-xs text-muted-foreground mt-0.5 relative">{label}</div>
     </Card>
+  );
+}
+
+/* ====================== CHANGE PASSWORD MODAL ====================== */
+
+function ChangePasswordModal({
+  open,
+  onOpenChange,
+  email: _email,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  email: string;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [form, setForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+
+  const reset = () => {
+    setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    setDone(false);
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.currentPassword || !form.newPassword || !form.confirmPassword) {
+      toast.error("Please fill all fields");
+      return;
+    }
+    if (form.newPassword.length < 6) {
+      toast.error("New password must be at least 6 characters");
+      return;
+    }
+    if (form.newPassword !== form.confirmPassword) {
+      toast.error("New passwords do not match");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: form.currentPassword,
+          newPassword: form.newPassword,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed");
+      setDone(true);
+      toast.success("Password changed successfully!");
+      setTimeout(() => {
+        reset();
+        onOpenChange(false);
+      }, 1200);
+    } catch (err) {
+      toast.error("Failed to change password", {
+        description: (err as Error).message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) setTimeout(reset, 300);
+      }}
+    >
+      <DialogContent className="max-w-md w-[95vw] p-0 gap-0 glass-strong border-white/10 overflow-hidden">
+        <DialogTitle className="sr-only">Change password</DialogTitle>
+        <div className="relative bg-gradient-to-br from-[var(--neon-violet)]/30 to-[var(--neon-pink)]/20 p-5 flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--neon-violet)]/20">
+            <KeyRound className="h-5 w-5 text-[var(--neon-violet)]" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold">Change Password</h2>
+            <p className="text-[11px] text-muted-foreground">
+              {done ? "Password updated successfully" : "Secure your account with a new password"}
+            </p>
+          </div>
+        </div>
+
+        {done ? (
+          <div className="p-10 flex flex-col items-center text-center">
+            <div className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-[var(--neon-emerald)] to-[var(--neon-cyan)] glow-emerald mb-3">
+              <ShieldCheck className="h-7 w-7 text-white" strokeWidth={2.5} />
+            </div>
+            <p className="text-sm text-muted-foreground">Redirecting…</p>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="p-6 space-y-4">
+            <div>
+              <Label className="block mb-1.5 text-xs font-medium text-muted-foreground">
+                Current Password
+              </Label>
+              <Input
+                type="password"
+                value={form.currentPassword}
+                onChange={(e) => setForm({ ...form, currentPassword: e.target.value })}
+                placeholder="••••••••"
+                className="bg-white/5 border-white/10"
+                required
+              />
+            </div>
+            <div>
+              <Label className="block mb-1.5 text-xs font-medium text-muted-foreground">
+                New Password
+              </Label>
+              <Input
+                type="password"
+                value={form.newPassword}
+                onChange={(e) => setForm({ ...form, newPassword: e.target.value })}
+                placeholder="At least 6 characters"
+                className="bg-white/5 border-white/10"
+                required
+              />
+            </div>
+            <div>
+              <Label className="block mb-1.5 text-xs font-medium text-muted-foreground">
+                Confirm New Password
+              </Label>
+              <Input
+                type="password"
+                value={form.confirmPassword}
+                onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+                placeholder="••••••••"
+                className="bg-white/5 border-white/10"
+                required
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                type="submit"
+                disabled={loading}
+                className="flex-1 btn-magnetic h-11 bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0"
+              >
+                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {loading ? "Updating…" : "Update Password"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="glass border-white/15"
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ====================== TWO-FACTOR AUTH MODAL ====================== */
+
+function TwoFactorModal({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
+  // 2FA demo flow: generate a 6-digit code, user enters it to "enable".
+  const [stage, setStage] = useState<"intro" | "code" | "done">("intro");
+  const [loading, setLoading] = useState(false);
+  const [sentCode, setSentCode] = useState("");
+  const [enteredCode, setEnteredCode] = useState("");
+  const [error, setError] = useState(false);
+
+  const reset = () => {
+    setStage("intro");
+    setSentCode("");
+    setEnteredCode("");
+    setError(false);
+  };
+
+  const generateAndSend = async () => {
+    setLoading(true);
+    // simulate sending an OTP to the user's email
+    const code = String(Math.floor(100000 + Math.random() * 899999));
+    setSentCode(code);
+    await new Promise((r) => setTimeout(r, 900));
+    setLoading(false);
+    setStage("code");
+    toast.success("2FA code sent", {
+      description: `Demo code: ${code} (in production this goes to your email)`,
+    });
+  };
+
+  const verifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (enteredCode.trim() !== sentCode) {
+      setError(true);
+      toast.error("Incorrect code. Please try again.");
+      return;
+    }
+    setLoading(true);
+    await new Promise((r) => setTimeout(r, 700));
+    setLoading(false);
+    setStage("done");
+    toast.success("Two-factor authentication enabled!");
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) setTimeout(reset, 300);
+      }}
+    >
+      <DialogContent className="max-w-md w-[95vw] p-0 gap-0 glass-strong border-white/10 overflow-hidden">
+        <DialogTitle className="sr-only">Two-factor authentication</DialogTitle>
+        <div className="relative bg-gradient-to-br from-[var(--neon-emerald)]/30 to-[var(--neon-cyan)]/20 p-5 flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--neon-emerald)]/20">
+            <Smartphone className="h-5 w-5 text-[var(--neon-emerald)]" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold">Two-Factor Authentication</h2>
+            <p className="text-[11px] text-muted-foreground">
+              Add an extra layer of security to your account
+            </p>
+          </div>
+        </div>
+
+        {stage === "intro" && (
+          <div className="p-6 space-y-4">
+            <div className="rounded-lg glass p-4 text-sm text-muted-foreground leading-relaxed">
+              <ShieldCheck className="h-5 w-5 text-[var(--neon-emerald)] mb-2" />
+              With 2FA enabled, you&apos;ll receive a 6-digit verification code
+              on your email every time you sign in. Even if someone steals your
+              password, they can&apos;t access your account without this code.
+            </div>
+            <Button
+              onClick={generateAndSend}
+              disabled={loading}
+              className="w-full btn-magnetic h-11 bg-gradient-to-r from-[var(--neon-emerald)] to-[var(--neon-cyan)] text-white border-0"
+            >
+              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              {loading ? "Sending code…" : "Enable 2FA"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="w-full glass border-white/15"
+            >
+              Cancel
+            </Button>
+          </div>
+        )}
+
+        {stage === "code" && (
+          <form onSubmit={verifyCode} className="p-6 space-y-4">
+            <div className="rounded-lg glass p-3 text-xs text-muted-foreground">
+              Enter the 6-digit code sent to your email.
+            </div>
+            <div>
+              <Label className="block mb-1.5 text-xs font-medium text-muted-foreground">
+                Verification Code
+              </Label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={enteredCode}
+                onChange={(e) => {
+                  setEnteredCode(e.target.value.replace(/\D/g, ""));
+                  setError(false);
+                }}
+                placeholder="000000"
+                className={cn(
+                  "bg-white/5 border-white/10 text-center text-2xl tracking-[0.5em] font-mono",
+                  error && "border-[var(--neon-pink)]/50"
+                )}
+                autoFocus
+                required
+              />
+            </div>
+            {error && (
+              <p className="text-xs text-[var(--neon-pink)] -mt-2">
+                Incorrect code. Try again.
+              </p>
+            )}
+            <div className="flex gap-2 pt-2">
+              <Button
+                type="submit"
+                disabled={loading || enteredCode.length !== 6}
+                className="flex-1 btn-magnetic h-11 bg-gradient-to-r from-[var(--neon-emerald)] to-[var(--neon-cyan)] text-white border-0"
+              >
+                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {loading ? "Verifying…" : "Verify & Enable"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStage("intro")}
+                className="glass border-white/15"
+              >
+                Back
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {stage === "done" && (
+          <div className="p-10 flex flex-col items-center text-center">
+            <div className="grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-[var(--neon-emerald)] to-[var(--neon-cyan)] glow-emerald mb-4">
+              <ShieldCheck className="h-8 w-8 text-white" strokeWidth={2.5} />
+            </div>
+            <h3 className="font-bold text-lg text-[var(--neon-emerald)]">
+              2FA Enabled!
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+              Your account is now protected with two-factor authentication.
+            </p>
+            <Button
+              onClick={() => {
+                reset();
+                onOpenChange(false);
+              }}
+              className="mt-5 btn-magnetic bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white border-0"
+            >
+              Done
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
