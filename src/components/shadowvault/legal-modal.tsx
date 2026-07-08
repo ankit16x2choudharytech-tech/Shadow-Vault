@@ -6,14 +6,8 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ShieldCheck, FileText, Ban, ScrollText } from "lucide-react";
+import { ShieldCheck, FileText, Ban, ScrollText, X } from "lucide-react";
 import { useStore, type LegalDoc } from "@/lib/store";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 
 const meta: Record<LegalDoc, { title: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
   privacy: { title: "Privacy Policy", icon: ShieldCheck, color: "var(--neon-emerald)" },
@@ -36,7 +30,7 @@ export function LegalModal() {
             {/* header */}
             <div className="relative sticky top-0 z-10 glass-strong border-b border-white/10 p-5 flex items-center gap-3">
               <div
-                className="grid h-10 w-10 place-items-center rounded-xl"
+                className="grid h-10 w-10 place-items-center rounded-xl shrink-0"
                 style={{ background: `${meta[legalType].color}22` }}
               >
                 {(() => {
@@ -44,7 +38,7 @@ export function LegalModal() {
                   return <Icon className="h-5 w-5" style={{ color: meta[legalType].color }} />;
                 })()}
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <h2 className="text-lg font-bold leading-tight">
                   {meta[legalType].title}
                 </h2>
@@ -52,6 +46,14 @@ export function LegalModal() {
                   Last updated: {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setLegalOpen(false)}
+                aria-label="Close"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg glass hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
             {/* content */}
@@ -68,6 +70,18 @@ export function LegalModal() {
                   {legalType === "refund" && <RefundContent />}
                 </motion.div>
               </AnimatePresence>
+            </div>
+
+            {/* footer close button */}
+            <div className="sticky bottom-0 glass-strong border-t border-white/10 p-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setLegalOpen(false)}
+                className="btn-magnetic inline-flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-medium bg-gradient-to-r from-[var(--neon-violet)] to-[var(--neon-pink)] text-white"
+              >
+                <X className="h-4 w-4" />
+                Close
+              </button>
             </div>
           </div>
         )}

@@ -287,3 +287,18 @@ Work Log:
 
 Stage Summary:
 - Customer Profile tab now has working Change Password (real bcrypt update via API) and working Enable 2FA (OTP flow). Referral & Earnings section completely removed.
+
+---
+Task ID: 9
+Agent: main
+Task: Fix close button in Privacy Policy / Terms & Conditions / Refund Policy modals
+
+Work Log:
+- Root cause: LegalModal header had NO close button at all — only icon + title. Users could only close via Esc/backdrop (not obvious).
+- Fix: Added a visible X close button in the modal header (top-right) that calls setLegalOpen(false). Also added a "Close" button in a sticky footer bar at the bottom of the modal content.
+- Removed unused Accordion import (was imported but never used).
+- Added shrink-0 to header icon and flex-1 to title container so the X button stays aligned and doesn't get squeezed.
+- Verified with Agent Browser: Privacy Policy → X button closes; Terms & Conditions → footer Close button closes; Refund Policy → X button closes. All three modals close reliably. No console errors. Lint clean.
+
+Stage Summary:
+- Legal modals (Privacy, Terms, Refund) now have two working close options: X button in header + Close button in footer.
