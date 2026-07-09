@@ -189,22 +189,22 @@ export function Footer() {
         {/* trust badges */}
         <div className="mt-12 pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-wrap justify-center">
-            <Badge label="Razorpay Verified" />
+            {/* <Badge label="Razorpay Verified" />
             <Badge label="PCI-DSS Compliant" />
             <Badge label="256-bit SSL" />
-            <Badge label="GST Registered" />
+            <Badge label="GST Registered" /> */}
           </div>
           <a
-            href="mailto:hello@shadowvault.in"
+            href="mailto:supportxinfo@gmail.com"
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <Mail className="h-4 w-4" />
-            hello@shadowvault.in
+            supportxinfo@gmail.com
           </a>
         </div>
 
         <div className="mt-8 pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
-          <p>© {new Date().getFullYear()} ShadowVault Technologies Pvt. Ltd. · Made in India 🇮🇳</p>
+          <p>© {new Date().getFullYear()} ShadowVault · Made in India 🇮🇳</p>
           <div className="flex items-center gap-4 flex-wrap justify-center">
             <button
               type="button"
