@@ -136,6 +136,7 @@ const response = NextResponse.redirect(
 setAuthCookie(response, token);
 
 return response;
+  }
  //   catch (err: any) {
  //   console.error(err);
 
