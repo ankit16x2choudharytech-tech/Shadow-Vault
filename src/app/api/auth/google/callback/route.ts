@@ -272,11 +272,26 @@ export async function GET(request: Request) {
         throw err;
       }
     }
-
-    const token = createToken(userId, "customer");
-    const response = NextResponse.redirect("/");
+/*
+   const token = createToken(userId, "customer");
+    const response = Response.redirect(
+  `${url.origin}/`,
+  302
+);
+    // const response = Response.redirect("/", 302);
     await setAuthCookie(response, token);
     return response;
+   }
+  */
+  const token = createToken(userId, "customer");
+
+const response = NextResponse.redirect(
+  new URL("/", request.url)
+);
+
+setAuthCookie(response, token);
+
+return response;
   } catch (err) {
     console.error("[GET /api/auth/google/callback] error:", err);
     return Response.json({ error: "Google login failed" }, { status: 500 });
