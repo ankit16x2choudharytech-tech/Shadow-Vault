@@ -121,8 +121,20 @@ export async function GET(request: Request) {
     const response = Response.redirect("/", 302);
     await setAuthCookie(response, token);
     return response;
-  } catch (err) {
-    console.error("[GET /api/auth/google/callback] error:", err);
-    return Response.json({ error: "Google login failed" }, { status: 500 });
-  }
+   }
+  catch (err: any) {
+  console.error(err);
+
+  return Response.json(
+    {
+      error: err.message,
+      stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
+    },
+    { status: 500 }
+  );
+}
+  // catch (err) {
+  //   console.error("[GET /api/auth/google/callback] error:", err);
+  //   return Response.json({ error: "Google login failed" }, { status: 500 });
+  // }
 }
