@@ -66,7 +66,7 @@ export function Testimonials() {
             className="inline-flex items-center gap-2 rounded-full glass px-4 py-1.5 text-xs font-medium text-muted-foreground mb-5"
           >
             <Star className="h-3.5 w-3.5 text-[var(--neon-amber)]" />
-            Loved by 48,000+ gamers
+            Loved by 100+ gamers
           </motion.div>
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
