@@ -4,6 +4,11 @@ import {
   createToken,
   setAuthCookie,
 } from "@/lib/auth";
+import {
+  createFallbackUser,
+  getFallbackUserByEmail,
+  isFirestoreUnavailable,
+} from "@/lib/fallback-data";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -46,36 +51,59 @@ export async function POST(request: Request) {
       );
     }
 
-    const existingSnap = await db
-      .collection("users")
-      .where("email", "==", trimmedEmail)
-      .limit(1)
-      .get();
-    if (!existingSnap.empty) {
-      return Response.json(
-        { error: "Email already registered" },
-        { status: 409 }
-      );
+    let userId = "";
+    try {
+      const existingSnap = await db
+        .collection("users")
+        .where("email", "==", trimmedEmail)
+        .limit(1)
+        .get();
+      if (!existingSnap.empty) {
+        return Response.json(
+          { error: "Email already registered" },
+          { status: 409 }
+        );
+      }
+
+      const hashed = await hashPassword(String(password));
+      const ref = await db.collection("users").add({
+        name: String(name).trim(),
+        email: trimmedEmail,
+        password: hashed,
+        role: "customer",
+        banned: false,
+        tier: "Standard",
+        orders: 0,
+        spent: 0,
+        createdAt: new Date(),
+      });
+      userId = ref.id;
+    } catch (err) {
+      if (isFirestoreUnavailable(err)) {
+        const existingFallbackUser = getFallbackUserByEmail(trimmedEmail);
+        if (existingFallbackUser) {
+          return Response.json(
+            { error: "Email already registered" },
+            { status: 409 }
+          );
+        }
+
+        const fallbackUser = await createFallbackUser({
+          name: String(name).trim(),
+          email: trimmedEmail,
+          password: String(password),
+        });
+        userId = fallbackUser.id;
+      } else {
+        throw err;
+      }
     }
 
-    const hashed = await hashPassword(String(password));
-    const ref = await db.collection("users").add({
-      name: String(name).trim(),
-      email: trimmedEmail,
-      password: hashed,
-      role: "customer",
-      banned: false,
-      tier: "Standard",
-      orders: 0,
-      spent: 0,
-      createdAt: new Date(),
-    });
-
-    const token = createToken(ref.id, "customer");
+    const token = createToken(userId, "customer");
     const response = Response.json(
       {
         user: {
-          id: ref.id,
+          id: userId,
           name: String(name).trim(),
           email: trimmedEmail,
           role: "customer",

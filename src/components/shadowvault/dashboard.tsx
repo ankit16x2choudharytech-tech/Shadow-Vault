@@ -185,7 +185,7 @@ export function Dashboard() {
             <AdminDashboard />
           </ErrorBoundary>
         ) : (
-          <CustomerDashboard email={customerEmail} />
+          <CustomerDashboard email={customerEmail} name={userName} />
         )}
       </div>
     </section>
@@ -194,7 +194,7 @@ export function Dashboard() {
 
 /* ============================ CUSTOMER ============================ */
 
-function CustomerDashboard({ email }: { email: string }) {
+function CustomerDashboard({ email, name }: { email: string; name: string | null }) {
   const { wishlist, toggleWishlist, setCartOpen, addToCart } = useStore();
   const ordersUrl = `/api/orders?email=${encodeURIComponent(email)}`;
   const { data: orders, loading } = useApi<Order[]>(ordersUrl);
@@ -505,7 +505,7 @@ function CustomerDashboard({ email }: { email: string }) {
             <Card className="glass p-6">
               <h3 className="font-semibold mb-4">Profile Details</h3>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <ProfileField label="Full Name" value="Demo Gamer" />
+                <ProfileField label="Full Name" value={name ?? "Guest User"} />
                 <ProfileField label="Email" value={email} />
                 <ProfileField label="Member Since" value="Jan 2025" />
                 <ProfileField label="Account Tier" value="Premium" badge />

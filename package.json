@@ -3,8 +3,8 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
+    "dev": "next dev -p 3000",
+    "build": "next build && node -e \"const fs=require('fs'); const path=require('path'); const staticSrc=path.join(process.cwd(),'.next','static'); const staticDest=path.join(process.cwd(),'.next','standalone','.next','static'); fs.mkdirSync(path.dirname(staticDest),{recursive:true}); fs.cpSync(staticSrc,staticDest,{recursive:true,force:true}); const publicSrc=path.join(process.cwd(),'public'); const publicDest=path.join(process.cwd(),'.next','standalone','public'); fs.mkdirSync(path.dirname(publicDest),{recursive:true}); fs.cpSync(publicSrc,publicDest,{recursive:true,force:true});\"",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
     "db:push": "prisma db push",

@@ -195,11 +195,15 @@ export async function POST(request: Request) {
       total: finalTotal,
       status: "PAID",
       paymentId: String(razorpay_payment_id),
+      paymentStatus: "PAID",
       paymentMethod: "RAZORPAY",
+      razorpayOrderId: String(razorpay_order_id),
+      razorpayPaymentId: String(razorpay_payment_id),
       itemsJson: JSON.stringify(itemsSnapshot),
       couponCode: appliedCouponCode,
       discount,
       createdAt: new Date(),
+      paidAt: new Date(),
       items: orderItemsData,
     });
 

@@ -1,4 +1,5 @@
 import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 
 /**
  * Firestore singleton.
@@ -17,26 +18,29 @@ import admin from "firebase-admin";
  *   const snap = await db.collection("products").get();
  */
 
-let app: admin.app.App | null = null;
-let firestore: admin.firestore.Firestore | null = null;
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  var __shadowvault_firebase_app: admin.app.App | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  var __shadowvault_firestore_db: admin.firestore.Firestore | undefined;
+}
 
 function init(): admin.firestore.Firestore {
-  if (firestore) return firestore;
+  if (globalThis.__shadowvault_firestore_db) {
+    return globalThis.__shadowvault_firestore_db;
+  }
 
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
+  const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
+  const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY?.trim();
 
-  // Detect placeholder/missing credentials.
-  const isConfigured =
-    !!projectId &&
-    !!clientEmail &&
-    !!privateKeyRaw &&
-    !projectId.startsWith("shadowvault-demo") === false
-      ? !!privateKeyRaw &&
-        privateKeyRaw.includes("BEGIN PRIVATE KEY") &&
-        !privateKeyRaw.includes("REPLACE_WITH_YOUR_KEY")
-      : !!projectId && !!clientEmail && !!privateKeyRaw;
+  const isConfigured = Boolean(
+    projectId &&
+      clientEmail &&
+      privateKeyRaw &&
+      privateKeyRaw.includes("BEGIN PRIVATE KEY") &&
+      !privateKeyRaw.includes("REPLACE_WITH_YOUR_KEY")
+  );
 
   if (!isConfigured) {
     throw new Error(
@@ -45,25 +49,47 @@ function init(): admin.firestore.Firestore {
     );
   }
 
-  // The private key in env often has literal "\n" — convert to real newlines.
-  const privateKey = privateKeyRaw!.replace(/\\n/g, "\n");
+  try {
+    const privateKey = privateKeyRaw.replace(/\\n/g, "\n");
+    let app = globalThis.__shadowvault_firebase_app;
 
-  if (!admin.apps.length) {
-    app = admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId,
-        clientEmail,
-        privateKey,
-      }),
-    });
-  } else {
-    app = admin.app();
+    if (!app) {
+      const apps = admin.getApps();
+      if (apps.length > 0) {
+        app = admin.getApp();
+      } else {
+        app = admin.initializeApp({
+          projectId,
+          credential: admin.cert({
+            projectId,
+            clientEmail,
+            privateKey,
+          }),
+        });
+      }
+      globalThis.__shadowvault_firebase_app = app;
+    }
+
+    const db = getFirestore(app);
+    db.settings({ preferRest: true });
+    globalThis.__shadowvault_firestore_db = db;
+    return db;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes('Firebase app named "[DEFAULT]" already exists')
+    ) {
+      const app = admin.getApp();
+      const db = getFirestore(app);
+      db.settings({ preferRest: true });
+      globalThis.__shadowvault_firebase_app = app;
+      globalThis.__shadowvault_firestore_db = db;
+      return db;
+    }
+
+    console.error("Firebase init failed:", error);
+    throw error;
   }
-
-  firestore = app.firestore();
-  // Prefer newer REST transport to avoid gRPC native-binary issues.
-  firestore.settings({ preferRest: true });
-  return firestore;
 }
 
 /**

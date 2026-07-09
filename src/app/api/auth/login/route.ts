@@ -4,6 +4,10 @@ import {
   createToken,
   setAuthCookie,
 } from "@/lib/auth";
+import {
+  getFallbackUserByEmail,
+  isFirestoreUnavailable,
+} from "@/lib/fallback-data";
 
 /** POST /api/auth/login — validate credentials and issue a JWT cookie */
 export async function POST(request: Request) {
@@ -34,26 +38,64 @@ export async function POST(request: Request) {
     }
 
     const trimmedEmail = String(email).trim().toLowerCase();
-    const snap = await db
-      .collection("users")
-      .where("email", "==", trimmedEmail)
-      .limit(1)
-      .get();
-    if (snap.empty) {
-      return Response.json(
-        { error: "Invalid credentials" },
-        { status: 401 }
-      );
+    let userDoc: {
+      id: string;
+      data: () => {
+        name?: string;
+        email?: string;
+        password?: string;
+        role?: string;
+        banned?: boolean;
+      };
+    } | null = null;
+
+    try {
+      const snap = await db
+        .collection("users")
+        .where("email", "==", trimmedEmail)
+        .limit(1)
+        .get();
+      if (!snap.empty) {
+        userDoc = snap.docs[0] as typeof userDoc;
+      }
+    } catch (err) {
+      if (!isFirestoreUnavailable(err)) {
+        throw err;
+      }
     }
 
-    const userDoc = snap.docs[0];
-    const user = userDoc.data() as {
+    let user: {
       name?: string;
       email?: string;
       password?: string;
       role?: string;
       banned?: boolean;
-    };
+    } | null = null;
+    let userId = "";
+
+    if (userDoc) {
+      user = userDoc.data();
+      userId = userDoc.id;
+    } else {
+      const fallbackUser = getFallbackUserByEmail(trimmedEmail);
+      if (fallbackUser) {
+        user = {
+          name: fallbackUser.name,
+          email: fallbackUser.email,
+          password: fallbackUser.password,
+          role: fallbackUser.role,
+          banned: fallbackUser.banned,
+        };
+        userId = fallbackUser.id;
+      }
+    }
+
+    if (!user) {
+      return Response.json(
+        { error: "Invalid credentials" },
+        { status: 401 }
+      );
+    }
 
     const ok = await verifyPassword(String(password), user.password ?? "");
     if (!ok) {
@@ -70,10 +112,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const token = createToken(userDoc.id, user.role ?? "customer");
+    const token = createToken(userId, user.role ?? "customer");
     const response = Response.json({
       user: {
-        id: userDoc.id,
+        id: userId,
         name: user.name ?? "",
         email: user.email ?? "",
         role: user.role ?? "customer",

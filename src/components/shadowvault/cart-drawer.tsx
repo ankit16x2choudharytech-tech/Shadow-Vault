@@ -55,7 +55,8 @@ export function CartDrawer() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: couponInput.trim().toUpperCase(), subtotal }),
       });
-      const json: CouponValidationResult = await res.json();
+      const payload = await res.json();
+      const json: CouponValidationResult = payload.data ?? payload;
       if (json.valid) {
         setCoupon(json.coupon ?? null, json.discount ?? 0);
         toast.success(`Coupon applied — you saved ₹${json.discount}`);

@@ -1,5 +1,6 @@
 import { getUserFromRequest } from "@/lib/auth";
 import { db } from "@/lib/firebase";
+import { getFallbackUserById, isFirestoreUnavailable } from "@/lib/fallback-data";
 
 /**
  * GET /api/auth/me — return the currently authenticated user.
@@ -17,24 +18,40 @@ export async function GET(request: Request) {
     }
 
     // Fetch the freshest tier/orders/spent values from the DB.
-    const freshDoc = await db.collection("users").doc(authUser.id).get();
-    if (!freshDoc.exists) {
-      return Response.json(
-        { error: "Not authenticated" },
-        { status: 401 }
-      );
+    let freshDoc: { exists?: boolean; id: string; data: () => any } | null = null;
+    let fresh: { name?: string; email?: string; role?: string; banned?: boolean; tier?: string } | null = null;
+
+    try {
+      freshDoc = await db.collection("users").doc(authUser.id).get();
+      if (freshDoc.exists) {
+        fresh = freshDoc.data() as typeof fresh;
+      }
+    } catch (err) {
+      if (!isFirestoreUnavailable(err)) {
+        throw err;
+      }
     }
-    const fresh = freshDoc.data() as {
-      name?: string;
-      email?: string;
-      role?: string;
-      banned?: boolean;
-      tier?: string;
-    };
+
+    if (!freshDoc?.exists) {
+      const fallbackUser = getFallbackUserById(authUser.id);
+      if (!fallbackUser) {
+        return Response.json(
+          { error: "Not authenticated" },
+          { status: 401 }
+        );
+      }
+      fresh = {
+        name: fallbackUser.name,
+        email: fallbackUser.email,
+        role: fallbackUser.role,
+        banned: fallbackUser.banned,
+        tier: fallbackUser.tier,
+      };
+    }
 
     return Response.json({
       user: {
-        id: freshDoc.id,
+        id: authUser.id,
         name: fresh.name ?? "",
         email: fresh.email ?? "",
         role: fresh.role ?? "customer",

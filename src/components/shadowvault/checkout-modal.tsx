@@ -88,7 +88,17 @@ export function CheckoutModal() {
         const createRes = await fetch("/api/razorpay/create-order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amount: total, currency: "INR" }),
+          body: JSON.stringify({
+            amount: total,
+            currency: "INR",
+            receipt: `sv_${Date.now()}`,
+            notes: {
+              customerName: name.trim(),
+              customerEmail: email.trim(),
+              phone: phone.trim(),
+              items: String(cart.length),
+            },
+          }),
         });
         if (createRes.ok) {
           const createJson = await createRes.json();

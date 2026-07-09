@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/firebase";
 import { transformProduct } from "@/lib/firestore-helpers";
+import { getFallbackProducts, isFirestoreUnavailable } from "@/lib/fallback-data";
 
 /**
  * GET /api/products
@@ -80,6 +81,9 @@ export async function GET(request: NextRequest) {
 
     return Response.json({ data: products });
   } catch (err) {
+    if (isFirestoreUnavailable(err)) {
+      return Response.json({ data: getFallbackProducts() });
+    }
     console.error("[GET /api/products] error:", err);
     return Response.json(
       { error: "Failed to fetch products" },

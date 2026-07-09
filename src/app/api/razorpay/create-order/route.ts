@@ -1,8 +1,16 @@
 import { razorpay } from "@/lib/razorpay";
 
+interface CreateOrderBody {
+  amount?: number;
+  currency?: string;
+  receipt?: string;
+  notes?: Record<string, string>;
+  payment_capture?: number;
+}
+
 /**
  * POST /api/razorpay/create-order
- * Body: { amount: number } — amount in whole rupees (integer).
+ * Body: { amount: number, currency?: string, receipt?: string, notes?: object }
  *
  * Creates a Razorpay order via the official Node SDK. Returns the order id,
  * amount (in paise), currency, and the public key id the client needs to
@@ -18,7 +26,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const { amount } = body as { amount?: number };
+    const {
+      amount,
+      currency = "INR",
+      receipt,
+      notes,
+      payment_capture = 1,
+    } = body as CreateOrderBody;
 
     if (
       amount == null ||
@@ -32,12 +46,24 @@ export async function POST(request: Request) {
       );
     }
 
-    const paise = Math.round(amount * 100);
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      return Response.json(
+        { error: "Razorpay is not configured on the server" },
+        { status: 500 }
+      );
+    }
 
+    const paise = Math.round(amount * 100);
     const order = await razorpay.orders.create({
       amount: paise,
-      currency: "INR",
-      receipt: `rcpt_${Date.now()}`,
+      currency,
+      receipt:
+        receipt ?? `sv_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      notes: {
+        ...(notes ?? {}),
+        source: "shadowvault",
+      },
+      payment_capture,
     });
 
     return Response.json({
@@ -45,6 +71,10 @@ export async function POST(request: Request) {
       amount: order.amount,
       currency: order.currency,
       keyId: process.env.RAZORPAY_KEY_ID,
+      receipt: order.receipt,
+      mode: process.env.RAZORPAY_KEY_ID?.startsWith("rzp_live_")
+        ? "live"
+        : "test",
     });
   } catch (err: any) {
     console.error("[POST /api/razorpay/create-order] error:", err);

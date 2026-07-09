@@ -19,8 +19,8 @@ India's most premium digital delivery platform where users can purchase game pan
 
 ### 💳 Payments & Checkout
 - **Real Razorpay integration** (UPI, Card, Net Banking) with HMAC signature verification
-- Demo/fallback mode when Razorpay keys aren't configured
-- Working coupon system (WELCOME10, SHADOW20, FLAT200, GAMER500, FIRSTBUY)
+- Demo/fallback mode when Razorpay keys are configured
+- Working coupon system 
 - 18% GST calculation, discount application
 - Instant order creation in database on payment success
 
@@ -122,30 +122,12 @@ RAZORPAY_KEY_SECRET=your_key_secret
 bun run seed:firestore
 ```
 
-This populates:
-- 7 categories
-- 12 products (with reviews)
-- 5 coupons
-- 8 users (bcrypt-hashed passwords)
-- 4 sample orders
-
 ### 4. Run the App
 
 ```bash
 bun run dev
 ```
-
-Open http://localhost:3000 in your browser.
-
 ---
-
-## 🔑 Demo Credentials
-
-| Role | Email | Password | Access |
-|------|-------|----------|--------|
-| **Customer** | `demo@shadowvault.in` | `test1234` | Dashboard, purchases, downloads |
-| **Admin** | `admin@shadowvault.in` | `admin123` | Admin Console (requires access code: `VAULT-ADMIN-2025`) |
-
 > ⚠️ **Admin access is gated** behind a secret code to prevent unauthorized users from self-elevating. The code is entered via the "Admin access" link in the sign-in modal. Change `ADMIN_ACCESS_CODE` in `src/components/shadowvault/auth-modal.tsx` before production.
 
 ---
@@ -154,12 +136,6 @@ Open http://localhost:3000 in your browser.
 
 ```
 shadowvault/
-├── docs/
-│   └── FIRESTORE-SETUP.md        # Firebase configuration guide
-├── prisma/
-│   ├── schema.prisma             # Legacy schema (for reference)
-│   ├── seed.ts                   # Legacy SQLite seeder
-│   └── seed-firestore.ts         # ✅ Firestore seeder (use this)
 ├── public/
 │   ├── uploads/                  # Uploaded product files
 │   └── logo.svg
@@ -272,17 +248,6 @@ shadowvault/
 | POST | `/api/upload` | Upload product file (admin) |
 
 ---
-
-## 💳 Coupon Codes (Demo)
-
-| Code | Type | Value | Min Order |
-|------|------|-------|-----------|
-| `WELCOME10` | Percent | 10% off | ₹499 |
-| `SHADOW20` | Percent | 20% off | ₹1,499 |
-| `FLAT200` | Flat | ₹200 off | ₹999 |
-| `GAMER500` | Flat | ₹500 off | ₹2,999 |
-| `FIRSTBUY` | Percent | 15% off | ₹299 |
-
 ---
 
 ## 🛡️ Security Features
@@ -308,7 +273,6 @@ bun run db:push          # (Legacy) Push Prisma schema
 ```
 
 ---
-
 ## 🚦 Deployment
 
 ### Production Checklist

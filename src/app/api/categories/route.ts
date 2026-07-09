@@ -1,5 +1,6 @@
 import { db } from "@/lib/firebase";
 import { transformCategory } from "@/lib/firestore-helpers";
+import { getFallbackCategories, isFirestoreUnavailable } from "@/lib/fallback-data";
 
 /**
  * GET /api/categories
@@ -17,6 +18,9 @@ export async function GET() {
     const categories = snap.docs.map(transformCategory);
     return Response.json({ data: categories });
   } catch (err) {
+    if (isFirestoreUnavailable(err)) {
+      return Response.json({ data: getFallbackCategories() });
+    }
     console.error("[GET /api/categories] error:", err);
     return Response.json(
       { error: "Failed to fetch categories" },

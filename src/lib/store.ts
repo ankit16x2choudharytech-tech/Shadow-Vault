@@ -122,9 +122,18 @@ export const useStore = create<AppState>()(
           userRole: role,
           userName: name,
           customerEmail: email,
+          cart: [],
+          coupon: null,
+          discount: 0,
         }),
       logout: () =>
-        set({ userRole: null, userName: null }),
+        set({
+          userRole: null,
+          userName: null,
+          cart: [],
+          coupon: null,
+          discount: 0,
+        }),
       setCustomerEmail: (e) => set({ customerEmail: e }),
       rehydrate: (role, name, email) =>
         set({ userRole: role, userName: name, customerEmail: email }),

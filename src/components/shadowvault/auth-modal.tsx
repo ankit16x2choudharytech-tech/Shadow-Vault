@@ -388,7 +388,9 @@ export function AuthModal() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => toast.info("Google login (demo)")}
+                onClick={() => {
+                  window.location.href = "/api/auth/google";
+                }}
                 className="w-full h-11 glass border-white/15 hover:bg-white/10"
               >
                 <GoogleIcon className="h-4 w-4 mr-2" />
