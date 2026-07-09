@@ -1,6 +1,7 @@
 import { db } from "@/lib/firebase";
 import { createToken, hashPassword, setAuthCookie } from "@/lib/auth";
 import { getFallbackUserByEmail, createFallbackUser, isFirestoreUnavailable } from "@/lib/fallback-data";
+import { NextResponse } from "next/server";
 
 interface GoogleTokenResponse {
   access_token: string;
@@ -117,7 +118,7 @@ export async function GET(request: Request) {
       }
     }
 
-    const token = createToken(userId, "customer");
+   /* const token = createToken(userId, "customer");
     const response = Response.redirect(
   `${url.origin}/`,
   302
@@ -125,7 +126,16 @@ export async function GET(request: Request) {
     // const response = Response.redirect("/", 302);
     await setAuthCookie(response, token);
     return response;
-   }
+   }*/
+      const token = createToken(userId, "customer");
+
+const response = NextResponse.redirect(
+  new URL("/", request.url)
+);
+
+setAuthCookie(response, token);
+
+return response;
  //   catch (err: any) {
  //   console.error(err);
 
