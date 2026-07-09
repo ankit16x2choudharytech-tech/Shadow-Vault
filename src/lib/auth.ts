@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 import { db } from "@/lib/firebase";
+import { NextResponse } from "next/server";
 
 const COOKIE_NAME = "sv_token";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
@@ -103,16 +104,31 @@ export async function getUserFromRequest(
  * next/headers cookies() jar (the Next 16 recommended approach inside Route
  * Handlers).
  */
-export async function setAuthCookie(
-  response: Response,
+/* export async function setAuthCookie(
+   response: Response,
+   token: string
+ ): Promise<void> {
+   void response; // cookie is managed via next/headers cookies() jar
+   const jar = await cookies();
+   jar.set({
+     name: COOKIE_NAME,
+     value: token,
+     httpOnly: true,
+     sameSite: "lax",
+     path: "/",
+     maxAge: COOKIE_MAX_AGE,
+   });
+ }
+*/
+export function setAuthCookie(
+  response: NextResponse,
   token: string
-): Promise<void> {
-  void response; // cookie is managed via next/headers cookies() jar
-  const jar = await cookies();
-  jar.set({
+) {
+  response.cookies.set({
     name: COOKIE_NAME,
     value: token,
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: COOKIE_MAX_AGE,
