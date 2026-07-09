@@ -51,8 +51,8 @@ function AnimatedNumber({
 }
 
 const stats = [
-  { icon: Users, label: "Active Members", value: 48500, suffix: "+", color: "var(--neon-violet)" },
-  { icon: Download, label: "Files Delivered", value: 192400, suffix: "+", color: "var(--neon-emerald)" },
+  { icon: Users, label: "Active Members", value: 100, suffix: "+", color: "var(--neon-violet)" },
+  { icon: Download, label: "Files Delivered", value: 200, suffix: "+", color: "var(--neon-emerald)" },
   { icon: Star, label: "Avg. Rating", value: 4.9, decimals: 1, color: "var(--neon-amber)" },
   { icon: ShieldCheck, label: "Secure Orders", value: 99.8, decimals: 1, suffix: "%", color: "var(--neon-pink)" },
 ];
@@ -203,8 +203,8 @@ export function Hero() {
 
 export function Ticker() {
   const items = [
-    "PHANTOMSTRIKE PRO v4.2 — UPDATED",
-    "NEXUS MOD MENU — TRENDING #1",
+    // "PHANTOMSTRIKE PRO v4.2 — UPDATED",
+    // "NEXUS MOD MENU — TRENDING #1",
     "NEW: CIPHER STREAMER KIT",
     "FLAT ₹500 OFF ON ORDERS ₹2999+",
     "VORTEX EMULATOR SUITE — NEW RELEASE",
