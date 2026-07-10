@@ -174,7 +174,7 @@ function PrivacyContent() {
 
       <Section title="7. Contact">
         <p>
-          For privacy queries: <span className="text-[var(--neon-violet)]">privacy@shadowvault.in</span>
+          For privacy queries: <span className="text-[var(--neon-violet)]">supportxinfo@gmail.com</span>
         </p>
       </Section>
     </div>
