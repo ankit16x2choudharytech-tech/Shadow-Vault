@@ -108,7 +108,7 @@ function PrivacyContent() {
   return (
     <div>
       <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
-        ShadowVault Technologies Pvt. Ltd. (&quot;ShadowVault&quot;, &quot;we&quot;,
+        ShadowVault . (&quot;ShadowVault&quot;, &quot;we&quot;,
         &quot;us&quot;) respects your privacy. This Privacy Policy explains how we
         collect, use, store, and protect your personal information when you use
         our platform.
@@ -283,7 +283,7 @@ function TermsContent() {
 
       <Section title="10. Contact">
         <p>
-          For legal queries: <span className="text-[var(--neon-violet)]">legal@shadowvault.in</span>
+          For legal queries: <span className="text-[var(--neon-violet)]">supportxinfo@gmail.com</span>
         </p>
       </Section>
     </div>
@@ -365,7 +365,7 @@ function RefundContent() {
 
       <Section title="Contact Support">
         <p>
-          Email: <span className="text-[var(--neon-violet)]">support@shadowvault.in</span>
+          Email: <span className="text-[var(--neon-violet)]">supportxinfo@gmail.com</span>
         </p>
         <p>Response time: within 24 hours, Mon–Sat.</p>
       </Section>
